@@ -1,0 +1,15 @@
+[Unit]
+Description=BMW Diagnostic AI API Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/taller/server
+ExecStart=/bin/bash -c 'source /srv/taller/server/.env && exec /usr/bin/node /srv/taller/server/dist/index.js'
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

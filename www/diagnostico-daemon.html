@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW Diagnostic - Daemon Mode (Precision)</title>
+    <!-- WebSocket nativo, no se necesita socket.io -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        .header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 { font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        .precision-badge {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: black;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        .status-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .badge.success { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .badge.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .badge.warning { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+        .badge.info { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1000px) { .container { grid-template-columns: 1fr; } }
+
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card.full-width { grid-column: 1 / -1; }
+        .card h2 {
+            font-size: 1rem;
+            margin-bottom: 15px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #2563eb; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover:not(:disabled) { background: #16a34a; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: black; }
+        .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #94a3b8; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        .daemon-status {
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .daemon-status.connected { border: 1px solid rgba(34, 197, 94, 0.3); }
+        .daemon-status.disconnected { border: 1px solid rgba(239, 68, 68, 0.3); }
+        .daemon-status h3 { font-size: 1rem; margin-bottom: 10px; }
+        .daemon-status .latency {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4ade80;
+        }
+        .daemon-status .latency-label { font-size: 0.8rem; color: #64748b; }
+
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .device-item {
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .device-item:hover { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+        .device-item.active { background: #3b82f6; border-color: #3b82f6; }
+        .device-item .name { font-weight: 600; }
+        .device-item .serial { font-size: 0.8rem; color: #64748b; }
+
+        .ecu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .ecu-btn {
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #e2e8f0;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .ecu-btn:hover:not(.disabled) { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+        .ecu-btn.active { background: #3b82f6; border-color: #3b82f6; }
+        .ecu-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+        .ecu-btn .name { font-weight: 600; font-size: 0.9rem; }
+        .ecu-btn .desc { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+        .dtc-list { max-height: 250px; overflow-y: auto; }
+        .dtc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .dtc-code { font-family: monospace; font-size: 1rem; font-weight: 600; color: #f59e0b; }
+        .dtc-badges { display: flex; gap: 4px; }
+        .dtc-badge { font-size: 0.6rem; padding: 2px 5px; border-radius: 3px; }
+        .dtc-badge.confirmed { background: #dc2626; color: white; }
+        .dtc-badge.pending { background: #f59e0b; color: black; }
+        .no-dtcs { text-align: center; padding: 15px; color: #22c55e; font-size: 0.9rem; }
+
+        .live-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+        }
+        .gauge {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            position: relative;
+        }
+        .gauge-value { font-size: 1.8rem; font-weight: 700; color: #3b82f6; }
+        .gauge-unit { font-size: 0.8rem; color: #64748b; }
+        .gauge-label { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
+        .gauge-latency {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            font-size: 0.6rem;
+            color: #4ade80;
+        }
+
+        .perf-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+        .perf-item { text-align: center; }
+        .perf-value { font-size: 1.1rem; font-weight: 600; color: #4ade80; }
+        .perf-label { font-size: 0.65rem; color: #64748b; }
+
+        .log {
+            background: #0f172a;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .log-entry { margin-bottom: 2px; }
+        .log-entry.info { color: #60a5fa; }
+        .log-entry.success { color: #22c55e; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warn { color: #fbbf24; }
+        .log-entry.data { color: #a78bfa; }
+
+        .hidden { display: none !important; }
+
+        /* Data grid for comprehensive readings */
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        .data-item {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .data-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .data-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+        .data-value.highlight { color: #22c55e; }
+        .data-value.warning { color: #f59e0b; }
+        .data-value.error { color: #ef4444; }
+
+        /* Gear display special styling */
+        .gear-display {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #4ade80;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 15px;
+            border-radius: 8px;
+        }
+
+        .instructions {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .instructions h4 { color: #60a5fa; margin-bottom: 8px; font-size: 0.9rem; }
+        .instructions ol { margin-left: 18px; font-size: 0.85rem; }
+        .instructions li { margin-bottom: 5px; }
+        .instructions code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BMW Diagnostic <span class="precision-badge">DAEMON MODE - us PRECISION</span></h1>
+        <div class="status-badges">
+            <span id="daemon-badge" class="badge error">Daemon: Offline</span>
+            <span id="device-badge" class="badge warning">FTDI: -</span>
+            <span id="ecu-badge" class="badge warning">ECU: -</span>
+            <span id="latency-badge" class="badge info">Lat: -</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Daemon Connection -->
+        <div class="card">
+            <h2>Conexion Daemon Local</h2>
+            <div id="daemon-status" class="daemon-status disconnected">
+                <h3 id="daemon-title">Daemon Desconectado</h3>
+                <div class="latency" id="daemon-latency">-</div>
+                <div class="latency-label">Latencia Promedio (microsegundos)</div>
+            </div>
+            <div class="btn-group">
+                <button id="btn-connect-daemon" class="btn btn-primary">Conectar a Daemon</button>
+                <button id="btn-refresh-devices" class="btn btn-outline" disabled>Refrescar Dispositivos</button>
+            </div>
+
+            <div id="instructions" class="instructions" style="margin-top:15px">
+                <h4>Instrucciones</h4>
+                <ol>
+                    <li>Descargar <code>bmw-diag-daemon.exe</code></li>
+                    <li>Conectar cable K+DCAN al USB</li>
+                    <li>Ejecutar el daemon como Administrador</li>
+                    <li>Pulsar "Conectar a Daemon"</li>
+                </ol>
+            </div>
+
+            <div id="device-list" class="device-list hidden"></div>
+        </div>
+
+        <!-- ECU Selection -->
+        <div class="card">
+            <h2>Seleccionar ECU</h2>
+            <div id="ecu-grid" class="ecu-grid">
+                <button class="ecu-btn disabled" data-address="18" data-name="DME">
+                    <div class="name">DME</div><div class="desc">Motor</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="24" data-name="EGS">
+                    <div class="name">EGS</div><div class="desc">Caja</div>
+                </button>
+                <!-- ZKE removed: E60 body electronics use CAN bus, not K-Line -->
+                <button class="ecu-btn disabled" data-address="68" data-name="DSC">
+                    <div class="name">DSC</div><div class="desc">Estabilidad</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="96" data-name="KOMBI">
+                    <div class="name">KOMBI</div><div class="desc">Cuadro</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="91" data-name="IHKA">
+                    <div class="name">IHKA</div><div class="desc">Clima</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="card">
+            <h2>Diagnostico</h2>
+            <div class="btn-group" style="margin-bottom:12px">
+                <button id="btn-read-dtc" class="btn btn-warning" disabled>Leer DTCs</button>
+                <button id="btn-clear-dtc" class="btn btn-danger" disabled>Borrar DTCs</button>
+            </div>
+            <div id="dtc-list" class="dtc-list">
+                <div class="no-dtcs">Conecta y lee los DTCs</div>
+            </div>
+        </div>
+
+        <!-- Live Data -->
+        <div class="card">
+            <h2>Datos en Vivo (Precision us)</h2>
+            <div class="btn-group" style="margin-bottom:12px">
+                <button id="btn-start-live" class="btn btn-success" disabled>Iniciar</button>
+                <button id="btn-stop-live" class="btn btn-danger hidden">Detener</button>
+                <select id="poll-rate" class="btn btn-outline">
+                    <option value="50">20 Hz</option>
+                    <option value="100" selected>10 Hz</option>
+                    <option value="200">5 Hz</option>
+                </select>
+            </div>
+            <div id="live-grid" class="live-grid">
+                <div class="gauge" data-pid="12">
+                    <span class="gauge-latency" id="lat-rpm">-</span>
+                    <div class="gauge-value" id="val-rpm">-</div>
+                    <div class="gauge-unit">RPM</div>
+                    <div class="gauge-label">Motor</div>
+                </div>
+                <div class="gauge" data-pid="5">
+                    <span class="gauge-latency" id="lat-temp">-</span>
+                    <div class="gauge-value" id="val-temp">-</div>
+                    <div class="gauge-unit">C</div>
+                    <div class="gauge-label">Refrigerante</div>
+                </div>
+                <div class="gauge" data-pid="13">
+                    <span class="gauge-latency" id="lat-speed">-</span>
+                    <div class="gauge-value" id="val-speed">-</div>
+                    <div class="gauge-unit">km/h</div>
+                    <div class="gauge-label">Velocidad</div>
+                </div>
+                <div class="gauge" data-pid="17">
+                    <span class="gauge-latency" id="lat-throttle">-</span>
+                    <div class="gauge-value" id="val-throttle">-</div>
+                    <div class="gauge-unit">%</div>
+                    <div class="gauge-label">Acelerador</div>
+                </div>
+            </div>
+            <div class="perf-row">
+                <div class="perf-item">
+                    <div class="perf-value" id="perf-hz">-</div>
+                    <div class="perf-label">Hz Actual</div>
+                </div>
+                <div class="perf-item">
+                    <div class="perf-value" id="perf-lat">-</div>
+                    <div class="perf-label">us Latencia</div>
+                </div>
+                <div class="perf-item">
+                    <div class="perf-value" id="perf-success">-</div>
+                    <div class="perf-label">% Exito</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comprehensive Engine Data -->
+        <div class="card">
+            <h2>Motor Completo (DME)</h2>
+            <div class="btn-group" style="margin-bottom:12px">
+                <button id="btn-read-engine" class="btn btn-primary" disabled>Leer Motor</button>
+            </div>
+            <div id="engine-data" class="data-grid">
+                <div class="data-item"><span class="data-label">RPM</span><span class="data-value" id="eng-rpm">-</span></div>
+                <div class="data-item"><span class="data-label">Carga</span><span class="data-value" id="eng-load">-</span></div>
+                <div class="data-item"><span class="data-label">Refrigerante</span><span class="data-value" id="eng-coolant">-</span></div>
+                <div class="data-item"><span class="data-label">Aceite</span><span class="data-value" id="eng-oil">-</span></div>
+                <div class="data-item"><span class="data-label">Aire Admision</span><span class="data-value" id="eng-intake">-</span></div>
+                <div class="data-item"><span class="data-label">Acelerador</span><span class="data-value" id="eng-throttle">-</span></div>
+                <div class="data-item"><span class="data-label">Velocidad</span><span class="data-value" id="eng-speed">-</span></div>
+                <div class="data-item"><span class="data-label">MAP</span><span class="data-value" id="eng-map">-</span></div>
+                <div class="data-item"><span class="data-label">MAF</span><span class="data-value" id="eng-maf">-</span></div>
+                <div class="data-item"><span class="data-label">Avance</span><span class="data-value" id="eng-timing">-</span></div>
+                <div class="data-item"><span class="data-label">Voltaje</span><span class="data-value" id="eng-voltage">-</span></div>
+                <div class="data-item"><span class="data-label">Fuel Trim S</span><span class="data-value" id="eng-stft">-</span></div>
+                <div class="data-item"><span class="data-label">Fuel Trim L</span><span class="data-value" id="eng-ltft">-</span></div>
+            </div>
+        </div>
+
+        <!-- Transmission Data (EGS) -->
+        <div class="card">
+            <h2>Transmision (EGS)</h2>
+            <div class="btn-group" style="margin-bottom:12px">
+                <button id="btn-read-trans" class="btn btn-primary" disabled>Leer Caja</button>
+                <span class="badge info" style="margin-left:8px">Requiere init a EGS (0x18)</span>
+            </div>
+            <div id="trans-data" class="data-grid">
+                <div class="data-item"><span class="data-label">Marcha Actual</span><span class="data-value" id="trans-gear">-</span></div>
+                <div class="data-item"><span class="data-label">Marcha Objetivo</span><span class="data-value" id="trans-target">-</span></div>
+                <div class="data-item"><span class="data-label">Selector</span><span class="data-value" id="trans-selector">-</span></div>
+                <div class="data-item"><span class="data-label">RPM Entrada</span><span class="data-value" id="trans-input">-</span></div>
+                <div class="data-item"><span class="data-label">RPM Salida</span><span class="data-value" id="trans-output">-</span></div>
+                <div class="data-item"><span class="data-label">Temp Aceite</span><span class="data-value" id="trans-temp">-</span></div>
+                <div class="data-item"><span class="data-label">Par Motor</span><span class="data-value" id="trans-torque">-</span></div>
+                <div class="data-item"><span class="data-label">Convertidor</span><span class="data-value" id="trans-lockup">-</span></div>
+                <div class="data-item"><span class="data-label">Modo</span><span class="data-value" id="trans-mode">-</span></div>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div class="card full-width">
+            <h2>Log <button id="btn-clear-log" class="btn btn-outline" style="margin-left:auto;padding:3px 8px;font-size:0.65rem">Limpiar</button></h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+<script>
+// ============================================
+// BMW Diagnostic - Daemon Mode
+// Connects to local FTDI daemon for us precision
+// ============================================
+
+let daemonWs = null;
+let daemonConnected = false;
+let deviceConnected = false;
+let ecuInitialized = false;
+let selectedDevice = null;
+let selectedEcuName = null;
+let liveActive = false;
+let liveInterval = null;
+
+// Performance stats
+const stats = {
+    latencies: [],
+    requests: 0,
+    success: 0,
+    lastUpdate: Date.now()
+};
+
+// DOM elements
+const daemonBadge = document.getElementById('daemon-badge');
+const deviceBadge = document.getElementById('device-badge');
+const ecuBadge = document.getElementById('ecu-badge');
+const latencyBadge = document.getElementById('latency-badge');
+const daemonStatus = document.getElementById('daemon-status');
+const daemonTitle = document.getElementById('daemon-title');
+const daemonLatency = document.getElementById('daemon-latency');
+const deviceList = document.getElementById('device-list');
+const instructions = document.getElementById('instructions');
+const logEl = document.getElementById('log');
+
+const btnConnectDaemon = document.getElementById('btn-connect-daemon');
+const btnRefreshDevices = document.getElementById('btn-refresh-devices');
+const btnReadDtc = document.getElementById('btn-read-dtc');
+const btnClearDtc = document.getElementById('btn-clear-dtc');
+const btnStartLive = document.getElementById('btn-start-live');
+const btnStopLive = document.getElementById('btn-stop-live');
+const btnReadEngine = document.getElementById('btn-read-engine');
+const btnReadTrans = document.getElementById('btn-read-trans');
+
+// ============ Logging ============
+function log(msg, type = 'info') {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    const time = new Date().toLocaleTimeString('es', {hour12:false, fractionalSecondDigits:3});
+    entry.textContent = `[${time}] ${msg}`;
+    logEl.appendChild(entry);
+    if (logEl.children.length > 100) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+document.getElementById('btn-clear-log').onclick = () => logEl.innerHTML = '';
+
+// ============ Daemon Connection ============
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 3000;
+let reconnectTimeout = null;
+
+function connectDaemon(isReconnect = false) {
+    // Clear any pending reconnect
+    if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+    }
+
+    if (!isReconnect) {
+        reconnectAttempts = 0;
+    }
+
+    log(`Conectando a daemon local ws://localhost:3003...${isReconnect ? ` (intento ${reconnectAttempts + 1})` : ''}`, 'info');
+
+    try {
+        daemonWs = new WebSocket('ws://localhost:3003');
+
+        daemonWs.onopen = () => {
+            log('Conectado al daemon!', 'success');
+            daemonConnected = true;
+            reconnectAttempts = 0; // Reset on successful connection
+            updateDaemonUI(true);
+            // Request device list
+            sendCommand('list_devices');
+        };
+
+        daemonWs.onmessage = (event) => {
+            try {
+                const response = JSON.parse(event.data);
+                handleResponse(response);
+            } catch (e) {
+                log(`Error parsing response: ${e.message}`, 'error');
+            }
+        };
+
+        daemonWs.onerror = (error) => {
+            log('Error de conexion - Asegurate de que el daemon esta ejecutandose', 'error');
+        };
+
+        daemonWs.onclose = () => {
+            log('Desconectado del daemon', 'error');
+            daemonConnected = false;
+            deviceConnected = false;
+            ecuInitialized = false;
+            // Stop live data to prevent memory leak from orphaned interval
+            if (liveActive) {
+                stopLiveData();
+            }
+            updateDaemonUI(false);
+            // Reset gauges to show disconnected state
+            resetGauges();
+
+            // Auto-reconnect if we were previously connected
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                log(`Reconectando en ${RECONNECT_DELAY_MS/1000}s... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, 'warn');
+                reconnectTimeout = setTimeout(() => connectDaemon(true), RECONNECT_DELAY_MS);
+            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                log('Maximo de reintentos alcanzado. Pulsa "Conectar" manualmente.', 'error');
+            }
+        };
+
+    } catch (e) {
+        log(`Error: ${e.message}`, 'error');
+    }
+}
+
+function sendCommand(cmd, data = null) {
+    if (!daemonWs || daemonWs.readyState !== WebSocket.OPEN) {
+        log('Daemon no conectado', 'error');
+        return;
+    }
+
+    const message = data ? { cmd, data } : { cmd };
+    log(`TX: ${JSON.stringify(message)}`, 'data');
+    daemonWs.send(JSON.stringify(message));
+}
+
+function handleResponse(response) {
+    if (response.latency_us) {
+        stats.latencies.push(response.latency_us);
+        if (stats.latencies.length > 50) stats.latencies.shift();
+        updateLatencyDisplay();
+    }
+
+    if (!response.success) {
+        log(`Error: ${response.error}`, 'error');
+        return;
+    }
+
+    const data = response.data;
+
+    // Handle different response types
+    if (data.message) {
+        log(`Daemon: ${data.message}`, 'success');
+    }
+
+    if (data.devices) {
+        renderDeviceList(data.devices);
+    }
+
+    if (data.connected !== undefined) {
+        deviceConnected = data.connected;
+        updateDeviceUI(data.connected);
+        if (data.connected) {
+            log(`Dispositivo ${data.device} conectado`, 'success');
+        }
+    }
+
+    if (data.initialized !== undefined) {
+        ecuInitialized = data.initialized;
+        updateEcuUI(data.initialized);
+        if (data.initialized) {
+            log(`ECU inicializada - Key bytes: ${data.key_bytes || 'N/A'}`, 'success');
+        }
+    }
+
+    if (data.dtcs !== undefined) {
+        renderDtcs(data.dtcs);
+        log(`Leidos ${data.count} DTCs`, data.count > 0 ? 'warn' : 'success');
+    }
+
+    if (data.cleared !== undefined) {
+        log('DTCs borrados', 'success');
+        renderDtcs([]);
+    }
+
+    if (data.pids !== undefined) {
+        updateLiveData(data.pids);
+        stats.requests++;
+        stats.success++;
+    }
+
+    if (data.value !== undefined) {
+        // Single PID response
+        log(`PID ${data.pid}: ${data.value} ${data.unit}`, 'data');
+    }
+
+    // Handle comprehensive engine data response
+    if (data.engine !== undefined) {
+        updateEngineData(data.engine);
+        const errorCount = data.errors ? data.errors.length : 0;
+        log(`Motor: ${Object.keys(data.engine).length} parametros leidos${errorCount > 0 ? ` (${errorCount} errores)` : ''}`, 'success');
+    }
+
+    // Handle transmission data response
+    if (data.transmission !== undefined) {
+        updateTransmissionData(data.transmission);
+        const errorCount = data.errors ? data.errors.length : 0;
+        log(`Transmision: ${Object.keys(data.transmission).length} parametros leidos${errorCount > 0 ? ` (${errorCount} errores)` : ''}`, 'success');
+    }
+}
+
+// ============ UI Updates ============
+function updateDaemonUI(connected) {
+    if (connected) {
+        daemonBadge.textContent = 'Daemon: OK';
+        daemonBadge.className = 'badge success';
+        daemonStatus.className = 'daemon-status connected';
+        daemonTitle.textContent = 'Daemon Conectado';
+        btnConnectDaemon.textContent = 'Reconectar';
+        btnRefreshDevices.disabled = false;
+        instructions.classList.add('hidden');
+    } else {
+        daemonBadge.textContent = 'Daemon: Offline';
+        daemonBadge.className = 'badge error';
+        daemonStatus.className = 'daemon-status disconnected';
+        daemonTitle.textContent = 'Daemon Desconectado';
+        daemonLatency.textContent = '-';
+        btnConnectDaemon.textContent = 'Conectar a Daemon';
+        btnRefreshDevices.disabled = true;
+        instructions.classList.remove('hidden');
+        deviceList.classList.add('hidden');
+        enableEcuButtons(false);
+    }
+}
+
+function updateDeviceUI(connected) {
+    if (connected) {
+        deviceBadge.textContent = 'FTDI: OK';
+        deviceBadge.className = 'badge success';
+        enableEcuButtons(true);
+    } else {
+        deviceBadge.textContent = 'FTDI: -';
+        deviceBadge.className = 'badge warning';
+        enableEcuButtons(false);
+    }
+}
+
+function updateEcuUI(initialized) {
+    if (initialized) {
+        // Update badge to show ECU name without "..." (init complete)
+        if (selectedEcuName) {
+            ecuBadge.textContent = `ECU: ${selectedEcuName}`;
+        }
+        ecuBadge.className = 'badge success';
+        btnReadDtc.disabled = false;
+        btnClearDtc.disabled = false;
+        btnStartLive.disabled = false;
+
+        // Enable engine/trans buttons based on ECU
+        btnReadEngine.disabled = (selectedEcuName !== 'DME');
+        btnReadTrans.disabled = (selectedEcuName !== 'EGS');
+    } else {
+        ecuBadge.textContent = 'ECU: -';
+        ecuBadge.className = 'badge warning';
+        selectedEcuName = null;
+        btnReadDtc.disabled = true;
+        btnClearDtc.disabled = true;
+        btnStartLive.disabled = true;
+        btnReadEngine.disabled = true;
+        btnReadTrans.disabled = true;
+    }
+}
+
+function updateLatencyDisplay() {
+    if (stats.latencies.length > 0) {
+        const avg = Math.round(stats.latencies.reduce((a,b) => a+b, 0) / stats.latencies.length);
+        daemonLatency.textContent = avg.toLocaleString();
+        latencyBadge.textContent = `Lat: ${avg}us`;
+
+        // Color based on latency
+        if (avg < 1000) {
+            daemonLatency.style.color = '#4ade80'; // green
+        } else if (avg < 5000) {
+            daemonLatency.style.color = '#fbbf24'; // yellow
+        } else {
+            daemonLatency.style.color = '#f87171'; // red
+        }
+    }
+}
+
+function renderDeviceList(devices) {
+    deviceList.innerHTML = '';
+    deviceList.classList.remove('hidden');
+
+    if (devices.length === 0) {
+        deviceList.innerHTML = '<div style="text-align:center;color:#ef4444;padding:15px">No se encontraron dispositivos FTDI</div>';
+        return;
+    }
+
+    devices.forEach(dev => {
+        const item = document.createElement('div');
+        item.className = 'device-item';
+        item.innerHTML = `
+            <div class="name">${dev.description}</div>
+            <div class="serial">Serial: ${dev.serial} | Index: ${dev.index}</div>
+        `;
+        item.onclick = () => {
+            document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
+            item.classList.add('active');
+            sendCommand('connect', { device_index: dev.index });
+        };
+        deviceList.appendChild(item);
+    });
+}
+
+function enableEcuButtons(enabled) {
+    document.querySelectorAll('.ecu-btn').forEach(btn => {
+        btn.classList.toggle('disabled', !enabled);
+        if (!enabled) btn.classList.remove('active');
+    });
+}
+
+function renderDtcs(dtcs) {
+    const container = document.getElementById('dtc-list');
+    if (dtcs.length === 0) {
+        container.innerHTML = '<div class="no-dtcs">Sin codigos de error</div>';
+        return;
+    }
+
+    container.innerHTML = dtcs.map(dtc => `
+        <div class="dtc-item">
+            <div class="dtc-code">${dtc.code}</div>
+            <div class="dtc-badges">
+                ${dtc.confirmed ? '<span class="dtc-badge confirmed">CONF</span>' : ''}
+                ${dtc.pending ? '<span class="dtc-badge pending">PEND</span>' : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateLiveData(pids) {
+    const mapping = {
+        '0x0C': { val: 'val-rpm', lat: 'lat-rpm' },
+        '0x05': { val: 'val-temp', lat: 'lat-temp' },
+        '0x0D': { val: 'val-speed', lat: 'lat-speed' },
+        '0x11': { val: 'val-throttle', lat: 'lat-throttle' }
+    };
+
+    for (const [pid, data] of Object.entries(pids)) {
+        const m = mapping[pid];
+        if (m && data.value !== undefined) {
+            document.getElementById(m.val).textContent = Math.round(data.value);
+            if (data.latency_us) {
+                document.getElementById(m.lat).textContent = `${data.latency_us}us`;
+            }
+        }
+    }
+
+    // Update performance stats
+    const now = Date.now();
+    const elapsed = (now - stats.lastUpdate) / 1000;
+    if (elapsed >= 1) {
+        const hz = stats.requests / elapsed;
+        const successRate = stats.requests > 0 ? (stats.success / stats.requests * 100) : 0;
+        const avgLat = stats.latencies.length > 0
+            ? Math.round(stats.latencies.reduce((a,b) => a+b, 0) / stats.latencies.length)
+            : 0;
+
+        document.getElementById('perf-hz').textContent = hz.toFixed(1);
+        document.getElementById('perf-lat').textContent = avgLat.toLocaleString();
+        document.getElementById('perf-success').textContent = successRate.toFixed(0);
+
+        stats.requests = 0;
+        stats.success = 0;
+        stats.lastUpdate = now;
+    }
+}
+
+// ============ Engine Data ============
+function updateEngineData(data) {
+    // Map response keys to element IDs (keys match backend get_pid_name)
+    const mapping = {
+        'rpm': 'eng-rpm',
+        'engine_load': 'eng-load',
+        'coolant_temp': 'eng-coolant',
+        'oil_temp': 'eng-oil',
+        'intake_air_temp': 'eng-intake',
+        'throttle_position': 'eng-throttle',
+        'speed': 'eng-speed',
+        'intake_manifold_pressure': 'eng-map',
+        'maf_rate': 'eng-maf',
+        'timing_advance': 'eng-timing',
+        'control_module_voltage': 'eng-voltage',
+        'short_fuel_trim_b1': 'eng-stft',
+        'long_fuel_trim_b1': 'eng-ltft'
+    };
+
+    for (const [key, elementId] of Object.entries(mapping)) {
+        const el = document.getElementById(elementId);
+        if (el && data[key] !== undefined) {
+            const val = data[key];
+            let display = '-';
+            let unit = '';
+
+            if (val.value !== undefined) {
+                display = typeof val.value === 'number' ? val.value.toFixed(1) : val.value;
+                unit = val.unit || '';
+            } else if (typeof val === 'number') {
+                display = val.toFixed(1);
+            }
+
+            el.textContent = unit ? `${display} ${unit}` : display;
+
+            // Color coding for certain values
+            el.classList.remove('highlight', 'warning', 'error');
+            if (key === 'coolant_temp' && val.value > 100) el.classList.add('warning');
+            if (key === 'oil_temp' && val.value > 130) el.classList.add('warning');
+            if (key === 'rpm' && val.value > 6000) el.classList.add('warning');
+        }
+    }
+}
+
+// ============ Transmission Data ============
+function updateTransmissionData(data) {
+    // Map response keys to element IDs (keys match backend get_transmission_pid_name)
+    const mapping = {
+        'current_gear': 'trans-gear',
+        'target_gear': 'trans-target',
+        'selector_position': 'trans-selector',
+        'input_shaft_rpm': 'trans-input',
+        'output_shaft_rpm': 'trans-output',
+        'oil_temp': 'trans-temp',
+        'engine_torque': 'trans-torque',
+        'lockup_status': 'trans-lockup',
+        'driving_program': 'trans-mode'
+    };
+
+    for (const [key, elementId] of Object.entries(mapping)) {
+        const el = document.getElementById(elementId);
+        if (el && data[key] !== undefined) {
+            const val = data[key];
+            let display = '-';
+            let unit = '';
+
+            if (val.value !== undefined) {
+                display = typeof val.value === 'number' ? val.value.toFixed(1) : val.value;
+                unit = val.unit || '';
+            } else if (typeof val === 'number') {
+                display = val.toFixed(0);
+            } else if (typeof val === 'string') {
+                display = val;
+            }
+
+            // Special formatting for gear
+            if (key === 'current_gear') {
+                const gear = parseInt(display);
+                if (gear === 0) display = 'N';
+                else if (gear === -1) display = 'R';
+                else if (gear > 0) display = gear.toString();
+                el.classList.add('gear-display');
+            }
+
+            // Selector position display
+            if (key === 'selector_position') {
+                const pos = parseInt(display);
+                const positions = { 0: 'P', 1: 'R', 2: 'N', 3: 'D', 4: 'S', 5: 'M' };
+                display = positions[pos] || display;
+            }
+
+            // Lockup status (0=open, 1=slipping, 2=locked)
+            if (key === 'lockup_status') {
+                const status = parseInt(val.value !== undefined ? val.value : val);
+                const statuses = { 0: 'Abierto', 1: 'Desliz.', 2: 'Bloq.' };
+                display = statuses[status] || status;
+            }
+
+            // Driving program (0=Normal, 1=Sport, 2=Manual)
+            if (key === 'driving_program') {
+                const mode = parseInt(val.value !== undefined ? val.value : val);
+                const modes = { 0: 'Normal', 1: 'Sport', 2: 'Manual' };
+                display = modes[mode] || mode;
+            }
+
+            el.textContent = unit ? `${display} ${unit}` : display;
+
+            // Color coding
+            el.classList.remove('highlight', 'warning', 'error');
+            if (key === 'oil_temp' && val.value > 120) el.classList.add('warning');
+        }
+    }
+}
+
+// ============ Live Data ============
+function startLiveData() {
+    if (!ecuInitialized) return;
+
+    liveActive = true;
+    btnStartLive.classList.add('hidden');
+    btnStopLive.classList.remove('hidden');
+
+    const pollRate = parseInt(document.getElementById('poll-rate').value);
+    log(`Iniciando datos en vivo a ${1000/pollRate} Hz`, 'success');
+
+    liveInterval = setInterval(() => {
+        if (!liveActive) return;
+        sendCommand('read_pids', { pids: [12, 5, 13, 17] }); // RPM, Temp, Speed, Throttle
+    }, pollRate);
+}
+
+function stopLiveData() {
+    liveActive = false;
+    if (liveInterval) {
+        clearInterval(liveInterval);
+        liveInterval = null;
+    }
+    btnStartLive.classList.remove('hidden');
+    btnStopLive.classList.add('hidden');
+    log('Datos en vivo detenidos', 'info');
+}
+
+// Reset all gauge displays to disconnected state
+function resetGauges() {
+    document.getElementById('val-rpm').textContent = '-';
+    document.getElementById('val-temp').textContent = '-';
+    document.getElementById('val-speed').textContent = '-';
+    document.getElementById('val-throttle').textContent = '-';
+    document.getElementById('lat-rpm').textContent = '-';
+    document.getElementById('lat-temp').textContent = '-';
+    document.getElementById('lat-speed').textContent = '-';
+    document.getElementById('lat-throttle').textContent = '-';
+    document.getElementById('perf-hz').textContent = '-';
+    document.getElementById('perf-lat').textContent = '-';
+    document.getElementById('perf-success').textContent = '-';
+    // Reset stats
+    stats.latencies = [];
+    stats.requests = 0;
+    stats.success = 0;
+    stats.lastUpdate = Date.now();
+}
+
+// ============ Event Listeners ============
+btnConnectDaemon.onclick = connectDaemon;
+btnRefreshDevices.onclick = () => sendCommand('list_devices');
+btnReadDtc.onclick = () => sendCommand('read_dtcs');
+btnClearDtc.onclick = () => { if (confirm('Borrar todos los DTCs?')) sendCommand('clear_dtcs'); };
+btnStartLive.onclick = startLiveData;
+btnStopLive.onclick = stopLiveData;
+btnReadEngine.onclick = () => {
+    if (selectedEcuName !== 'DME') {
+        log('Error: Primero inicializa DME para leer datos de motor', 'error');
+        return;
+    }
+    log('Leyendo datos completos de motor...', 'info');
+    sendCommand('read_engine_data');
+};
+btnReadTrans.onclick = () => {
+    if (selectedEcuName !== 'EGS') {
+        log('Error: Primero inicializa EGS para leer datos de transmision', 'error');
+        return;
+    }
+    log('Leyendo datos de transmision...', 'info');
+    sendCommand('read_transmission_data');
+};
+
+document.querySelectorAll('.ecu-btn').forEach(btn => {
+    btn.onclick = () => {
+        if (btn.classList.contains('disabled')) return;
+        document.querySelectorAll('.ecu-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const address = parseInt(btn.dataset.address);
+        const name = btn.dataset.name;
+        selectedEcuName = name; // Save for updateEcuUI
+        ecuBadge.textContent = `ECU: ${name}...`;
+        log(`Inicializando ${name} (0x${address.toString(16)})...`, 'info');
+        sendCommand('init_ecu', { address, fast: true });
+    };
+});
+
+// ============ Init ============
+log('Sistema listo - Pulse "Conectar a Daemon"', 'info');
+</script>
+</body>
+</html>

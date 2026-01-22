@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW Diagnostic Tool v2 - Optimizado</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        .header {
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 { font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        .status-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .badge.success { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .badge.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .badge.warning { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+        .badge.info { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1000px) { .container { grid-template-columns: 1fr; } }
+
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card.full-width { grid-column: 1 / -1; }
+        .card h2 {
+            font-size: 1rem;
+            margin-bottom: 15px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #2563eb; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover:not(:disabled) { background: #16a34a; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: black; }
+        .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #94a3b8; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            flex-shrink: 0;
+        }
+        .status-dot.connected { background: #22c55e; }
+        .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .ecu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
+        }
+        .ecu-btn {
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #e2e8f0;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .ecu-btn:hover:not(.disabled) { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+        .ecu-btn.active { background: #3b82f6; border-color: #3b82f6; }
+        .ecu-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+        .ecu-btn .name { font-weight: 600; font-size: 0.9rem; }
+        .ecu-btn .desc { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+
+        .dtc-list { max-height: 300px; overflow-y: auto; }
+        .dtc-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .dtc-code { font-family: monospace; font-size: 1.1rem; font-weight: 600; color: #f59e0b; }
+        .dtc-desc { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+        .dtc-badges { display: flex; gap: 5px; }
+        .dtc-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
+        .dtc-badge.confirmed { background: #dc2626; color: white; }
+        .dtc-badge.pending { background: #f59e0b; color: black; }
+        .no-dtcs { text-align: center; padding: 20px; color: #22c55e; }
+
+        .live-data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+        .gauge {
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+        }
+        .gauge-value { font-size: 2rem; font-weight: 700; color: #3b82f6; transition: color 0.3s; }
+        .gauge-value.stale { color: #64748b; }
+        .gauge-unit { font-size: 0.85rem; color: #64748b; }
+        .gauge-label { font-size: 0.75rem; color: #94a3b8; margin-top: 5px; }
+        .gauge-rate { font-size: 0.65rem; color: #4ade80; position: absolute; top: 5px; right: 8px; }
+
+        /* Performance Stats */
+        .perf-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+        .perf-stat { text-align: center; }
+        .perf-stat .value { font-size: 1.2rem; font-weight: 600; color: #4ade80; }
+        .perf-stat .label { color: #64748b; }
+
+        .log {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+        .log-entry { margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-entry.info { color: #60a5fa; }
+        .log-entry.success { color: #22c55e; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warn { color: #f59e0b; }
+        .log-entry.data { color: #8b5cf6; }
+
+        .ai-result {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .ai-result h4 { color: #60a5fa; margin-bottom: 10px; }
+        .ai-result ul { margin-left: 20px; }
+
+        .browser-warning {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            grid-column: 1 / -1;
+        }
+        .browser-warning h2 { color: #ef4444; margin-bottom: 15px; }
+        .browser-warning a { color: #60a5fa; }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: currentColor;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hidden { display: none !important; }
+
+        /* Optimized Mode Indicator */
+        .optimized-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 BMW Diagnostic <span class="optimized-badge">v2 Optimizado</span></h1>
+        <div class="status-badges">
+            <span id="serial-badge" class="badge error">USB: Desconectado</span>
+            <span id="ecu-badge" class="badge warning">ECU: -</span>
+            <span id="server-badge" class="badge info">Server: -</span>
+            <span id="latency-badge" class="badge info">Lat: -</span>
+        </div>
+    </div>
+
+    <div id="browser-warning" class="container hidden">
+        <div class="browser-warning">
+            <h2>Navegador No Compatible</h2>
+            <p>Tu navegador no soporta Web Serial API.</p>
+            <p>Usa <strong>Google Chrome</strong> o <strong>Microsoft Edge</strong>.</p>
+            <p><a href="https://www.google.com/chrome/" target="_blank">Descargar Chrome</a></p>
+        </div>
+    </div>
+
+    <div id="main-content" class="container">
+        <div class="card">
+            <h2>Conexion USB</h2>
+            <div class="connection-status">
+                <div id="status-dot" class="status-dot"></div>
+                <div>
+                    <div id="connection-text">No conectado</div>
+                    <div id="port-info" style="font-size:0.8rem;color:#64748b"></div>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button id="btn-connect" class="btn btn-primary">Conectar K+DCAN</button>
+                <button id="btn-disconnect" class="btn btn-danger hidden">Desconectar</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Seleccionar ECU</h2>
+            <div id="ecu-grid" class="ecu-grid">
+                <button class="ecu-btn disabled" data-address="0x12" data-name="DME">
+                    <div class="name">DME</div><div class="desc">Motor</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="0x18" data-name="EGS">
+                    <div class="name">EGS</div><div class="desc">Transmision</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="0x00" data-name="ZKE">
+                    <div class="name">ZKE</div><div class="desc">Carroceria</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="0x44" data-name="DSC">
+                    <div class="name">DSC</div><div class="desc">Estabilidad</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="0x60" data-name="KOMBI">
+                    <div class="name">KOMBI</div><div class="desc">Instrumentos</div>
+                </button>
+                <button class="ecu-btn disabled" data-address="0x5B" data-name="IHKA">
+                    <div class="name">IHKA</div><div class="desc">Clima</div>
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Diagnostico</h2>
+            <div class="btn-group" style="margin-bottom:15px">
+                <button id="btn-read-dtc" class="btn btn-warning" disabled>Leer DTCs</button>
+                <button id="btn-clear-dtc" class="btn btn-danger" disabled>Borrar DTCs</button>
+                <button id="btn-analyze" class="btn btn-primary" disabled>Analizar IA</button>
+            </div>
+            <div id="dtc-list" class="dtc-list">
+                <div class="no-dtcs">Conecta y lee los DTCs</div>
+            </div>
+            <div id="ai-result" class="ai-result hidden"></div>
+        </div>
+
+        <div class="card">
+            <h2>Datos en Vivo</h2>
+            <div class="btn-group" style="margin-bottom:15px">
+                <button id="btn-start-live" class="btn btn-success" disabled>Iniciar</button>
+                <button id="btn-stop-live" class="btn btn-danger hidden">Detener</button>
+                <select id="poll-rate" class="btn btn-outline" style="padding:8px">
+                    <option value="100">10 Hz (Rapido)</option>
+                    <option value="200" selected>5 Hz (Normal)</option>
+                    <option value="500">2 Hz (Lento)</option>
+                </select>
+            </div>
+            <div id="live-data-grid" class="live-data-grid">
+                <div class="gauge" data-pid="0x0C">
+                    <span class="gauge-rate" id="rate-rpm">-</span>
+                    <div class="gauge-value" id="gauge-rpm">-</div>
+                    <div class="gauge-unit">RPM</div>
+                    <div class="gauge-label">Motor</div>
+                </div>
+                <div class="gauge" data-pid="0x05">
+                    <span class="gauge-rate" id="rate-temp">-</span>
+                    <div class="gauge-value" id="gauge-temp">-</div>
+                    <div class="gauge-unit">C</div>
+                    <div class="gauge-label">Refrigerante</div>
+                </div>
+                <div class="gauge" data-pid="0x0D">
+                    <span class="gauge-rate" id="rate-speed">-</span>
+                    <div class="gauge-value" id="gauge-speed">-</div>
+                    <div class="gauge-unit">km/h</div>
+                    <div class="gauge-label">Velocidad</div>
+                </div>
+                <div class="gauge" data-pid="0x11">
+                    <span class="gauge-rate" id="rate-throttle">-</span>
+                    <div class="gauge-value" id="gauge-throttle">-</div>
+                    <div class="gauge-unit">%</div>
+                    <div class="gauge-label">Acelerador</div>
+                </div>
+            </div>
+            <div class="perf-stats">
+                <div class="perf-stat">
+                    <div class="value" id="stat-rate">-</div>
+                    <div class="label">Hz</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="value" id="stat-latency">-</div>
+                    <div class="label">ms latencia</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="value" id="stat-success">-</div>
+                    <div class="label">% exito</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="value" id="stat-errors">0</div>
+                    <div class="label">errores</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card full-width">
+            <h2>Log <button id="btn-clear-log" class="btn btn-outline" style="margin-left:auto;padding:4px 10px;font-size:0.7rem">Limpiar</button></h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+<script>
+// ==============================================
+// BMW Diagnostic Tool v2 - Optimizado
+// ==============================================
+
+// ============= Estado =============
+let port = null;
+let reader = null;
+let writer = null;
+let isConnected = false;
+let selectedEcu = null;
+let ecuInitialized = false;
+let dtcs = [];
+let socket = null;
+let sessionId = null;
+
+// Optimizaciones
+let liveDataActive = false;
+let pendingRequests = new Map(); // Para tracking de respuestas
+let requestId = 0;
+
+// Ring Buffer para datos entrantes
+class RingBuffer {
+    constructor(size = 2048) {
+        this.buffer = new Uint8Array(size);
+        this.head = 0;
+        this.tail = 0;
+        this.size = size;
+    }
+    push(data) {
+        for (const byte of data) {
+            this.buffer[this.head] = byte;
+            this.head = (this.head + 1) % this.size;
+            if (this.head === this.tail) {
+                this.tail = (this.tail + 1) % this.size;
+            }
+        }
+    }
+    available() {
+        return this.head >= this.tail ? this.head - this.tail : this.size - this.tail + this.head;
+    }
+    read(length) {
+        const toRead = Math.min(length, this.available());
+        const result = new Uint8Array(toRead);
+        for (let i = 0; i < toRead; i++) {
+            result[i] = this.buffer[this.tail];
+            this.tail = (this.tail + 1) % this.size;
+        }
+        return result;
+    }
+    peek(length) {
+        const toRead = Math.min(length, this.available());
+        const result = new Uint8Array(toRead);
+        let pos = this.tail;
+        for (let i = 0; i < toRead; i++) {
+            result[i] = this.buffer[pos];
+            pos = (pos + 1) % this.size;
+        }
+        return result;
+    }
+    clear() { this.head = 0; this.tail = 0; }
+}
+
+const rxBuffer = new RingBuffer(2048);
+
+// Performance tracking
+const perfStats = {
+    requestsSent: 0,
+    responsesReceived: 0,
+    errors: 0,
+    latencies: [],
+    lastUpdate: Date.now(),
+    updates: 0
+};
+
+// DOM Elements
+const serialBadge = document.getElementById('serial-badge');
+const ecuBadge = document.getElementById('ecu-badge');
+const serverBadge = document.getElementById('server-badge');
+const latencyBadge = document.getElementById('latency-badge');
+const statusDot = document.getElementById('status-dot');
+const connectionText = document.getElementById('connection-text');
+const portInfo = document.getElementById('port-info');
+const btnConnect = document.getElementById('btn-connect');
+const btnDisconnect = document.getElementById('btn-disconnect');
+const btnReadDtc = document.getElementById('btn-read-dtc');
+const btnClearDtc = document.getElementById('btn-clear-dtc');
+const btnAnalyze = document.getElementById('btn-analyze');
+const dtcListEl = document.getElementById('dtc-list');
+const aiResultEl = document.getElementById('ai-result');
+const btnStartLive = document.getElementById('btn-start-live');
+const btnStopLive = document.getElementById('btn-stop-live');
+const pollRateSelect = document.getElementById('poll-rate');
+const logEl = document.getElementById('log');
+
+// ============= Browser Check =============
+if (!('serial' in navigator)) {
+    document.getElementById('browser-warning').classList.remove('hidden');
+    document.getElementById('main-content').classList.add('hidden');
+}
+
+// ============= Logging =============
+let logCount = 0;
+const MAX_LOG_ENTRIES = 100;
+
+function log(message, type = 'info') {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    const time = new Date().toLocaleTimeString('es', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3});
+    entry.textContent = `[${time}] ${message}`;
+    logEl.appendChild(entry);
+    logCount++;
+    if (logCount > MAX_LOG_ENTRIES) {
+        logEl.removeChild(logEl.firstChild);
+        logCount--;
+    }
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function logHex(prefix, data, type = 'data') {
+    const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    log(`${prefix}: ${hex}`, type);
+}
+
+document.getElementById('btn-clear-log').onclick = () => { logEl.innerHTML = ''; logCount = 0; };
+
+// ============= WebSocket =============
+function connectWebSocket() {
+    socket = io('/app', { transports: ['websocket', 'polling'] });
+
+    socket.on('connect', () => {
+        log('Servidor conectado', 'success');
+        serverBadge.textContent = 'Server: OK';
+        serverBadge.className = 'badge success';
+        sessionId = `web-v2-${Date.now()}`;
+        socket.emit('session:create', { sessionId, vehicleInfo: { model: 'BMW E60 (Web v2)' } });
+    });
+
+    socket.on('disconnect', () => {
+        serverBadge.textContent = 'Server: Offline';
+        serverBadge.className = 'badge error';
+    });
+}
+
+// ============= Serial Connection =============
+async function connectSerial() {
+    try {
+        log('Solicitando puerto serial...', 'info');
+        port = await navigator.serial.requestPort({
+            filters: [{ usbVendorId: 0x0403 }] // FTDI
+        });
+
+        await port.open({
+            baudRate: 10400,
+            dataBits: 8,
+            stopBits: 1,
+            parity: 'none',
+            flowControl: 'none',
+            bufferSize: 4096
+        });
+
+        log('Puerto abierto', 'success');
+        reader = port.readable.getReader();
+        writer = port.writable.getWriter();
+        isConnected = true;
+
+        updateConnectionUI(true);
+        enableEcuButtons(true);
+
+        // Start optimized read loop
+        readLoopOptimized();
+
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+async function disconnectSerial() {
+    try {
+        liveDataActive = false;
+        if (reader) { await reader.cancel(); reader.releaseLock(); reader = null; }
+        if (writer) { writer.releaseLock(); writer = null; }
+        if (port) { await port.close(); port = null; }
+        isConnected = false;
+        ecuInitialized = false;
+        selectedEcu = null;
+        rxBuffer.clear();
+        updateConnectionUI(false);
+        enableEcuButtons(false);
+        log('Desconectado', 'info');
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    }
+}
+
+function updateConnectionUI(connected) {
+    if (connected) {
+        statusDot.classList.add('connected');
+        connectionText.textContent = 'Conectado';
+        portInfo.textContent = 'Cable K+DCAN (FTDI)';
+        serialBadge.textContent = 'USB: OK';
+        serialBadge.className = 'badge success';
+        btnConnect.classList.add('hidden');
+        btnDisconnect.classList.remove('hidden');
+    } else {
+        statusDot.classList.remove('connected');
+        connectionText.textContent = 'No conectado';
+        portInfo.textContent = '';
+        serialBadge.textContent = 'USB: Desconectado';
+        serialBadge.className = 'badge error';
+        ecuBadge.textContent = 'ECU: -';
+        ecuBadge.className = 'badge warning';
+        btnConnect.classList.remove('hidden');
+        btnDisconnect.classList.add('hidden');
+        btnReadDtc.disabled = true;
+        btnClearDtc.disabled = true;
+        btnStartLive.disabled = true;
+        btnAnalyze.disabled = true;
+    }
+}
+
+function enableEcuButtons(enabled) {
+    document.querySelectorAll('.ecu-btn').forEach(btn => {
+        btn.classList.toggle('disabled', !enabled);
+        if (!enabled) btn.classList.remove('active');
+    });
+}
+
+// ============= Optimized Read Loop =============
+async function readLoopOptimized() {
+    while (isConnected && reader) {
+        try {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value && value.length > 0) {
+                rxBuffer.push(value);
+                processRxBuffer();
+            }
+        } catch (error) {
+            if (isConnected) {
+                log(`Error lectura: ${error.message}`, 'error');
+                perfStats.errors++;
+            }
+            break;
+        }
+    }
+}
+
+// ============= KWP2000 Protocol =============
+function buildKWPMessage(source, target, data) {
+    const length = data.length;
+    const fmt = 0x80 | length;
+    const message = [fmt, target, source, ...data];
+    const checksum = message.reduce((a, b) => a + b, 0) & 0xFF;
+    message.push(checksum);
+    return new Uint8Array(message);
+}
+
+function parseKWPResponse(data) {
+    if (data.length < 4) return null;
+    const fmt = data[0];
+    let dataLength, dataStart;
+
+    if ((fmt & 0x80) !== 0) {
+        dataLength = fmt & 0x3F;
+        dataStart = 3;
+    } else {
+        return null;
+    }
+
+    const totalLength = dataStart + dataLength + 1;
+    if (data.length < totalLength) return null;
+
+    // Verify checksum
+    let calcChecksum = 0;
+    for (let i = 0; i < totalLength - 1; i++) {
+        calcChecksum = (calcChecksum + data[i]) & 0xFF;
+    }
+    if (calcChecksum !== data[totalLength - 1]) {
+        return { error: 'checksum' };
+    }
+
+    return {
+        source: data[2],
+        target: data[1],
+        service: data[dataStart],
+        data: Array.from(data.slice(dataStart, dataStart + dataLength)),
+        length: totalLength
+    };
+}
+
+// Process buffer and handle responses
+function processRxBuffer() {
+    while (rxBuffer.available() >= 4) {
+        const peek = Array.from(rxBuffer.peek(50));
+        const parsed = parseKWPResponse(peek);
+
+        if (parsed === null) break; // Need more data
+
+        if (parsed.error) {
+            rxBuffer.read(1); // Skip bad byte
+            continue;
+        }
+
+        rxBuffer.read(parsed.length);
+        handleResponse(parsed);
+    }
+}
+
+function handleResponse(response) {
+    perfStats.responsesReceived++;
+
+    // Check pending requests
+    for (const [id, req] of pendingRequests) {
+        if (req.expectedService === response.service || req.expectedService + 0x40 === response.service) {
+            const latency = performance.now() - req.timestamp;
+            perfStats.latencies.push(latency);
+            if (perfStats.latencies.length > 50) perfStats.latencies.shift();
+
+            req.resolve(response);
+            pendingRequests.delete(id);
+            return;
+        }
+    }
+}
+
+async function writeBytes(data) {
+    if (!writer) throw new Error('No conexion');
+    const bytes = new Uint8Array(data);
+    await writer.write(bytes);
+}
+
+async function sendRequest(data, expectedService, timeout = 1000) {
+    const id = ++requestId;
+    const timestamp = performance.now();
+    perfStats.requestsSent++;
+
+    return new Promise(async (resolve, reject) => {
+        pendingRequests.set(id, { expectedService, timestamp, resolve });
+
+        const timeoutId = setTimeout(() => {
+            pendingRequests.delete(id);
+            perfStats.errors++;
+            reject(new Error('Timeout'));
+        }, timeout);
+
+        try {
+            await writeBytes(data);
+        } catch (e) {
+            clearTimeout(timeoutId);
+            pendingRequests.delete(id);
+            reject(e);
+        }
+    });
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ============= K-Line Init =============
+async function klineFastInit(address) {
+    log(`Fast init ECU 0x${address.toString(16)}...`, 'info');
+
+    // Close and reopen for init
+    if (reader) { await reader.cancel(); reader.releaseLock(); }
+    if (writer) { writer.releaseLock(); }
+    await port.close();
+
+    await port.open({
+        baudRate: 10400,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        flowControl: 'none'
+    });
+
+    reader = port.readable.getReader();
+    writer = port.writable.getWriter();
+    rxBuffer.clear();
+
+    // Start read loop
+    readLoopOptimized();
+
+    // Wait for line to settle
+    await sleep(300);
+
+    // Send StartCommunication (0x81)
+    const startComm = buildKWPMessage(0xF1, address, [0x81]);
+    logHex('TX Init', startComm);
+
+    try {
+        const response = await sendRequest(startComm, 0x81, 3000);
+        logHex('RX Init', new Uint8Array(response.data), 'success');
+
+        if (response.service === 0xC1) {
+            log('Init exitoso', 'success');
+            return true;
+        }
+    } catch (e) {
+        log(`Init fallido: ${e.message}`, 'error');
+    }
+
+    return false;
+}
+
+async function initializeEcu(address, name) {
+    if (!isConnected) return;
+
+    log(`Conectando a ${name}...`, 'info');
+    statusDot.classList.add('connecting');
+    ecuBadge.textContent = `ECU: ${name}...`;
+
+    selectedEcu = { address, name };
+    const success = await klineFastInit(address);
+
+    if (success) {
+        ecuInitialized = true;
+        statusDot.classList.remove('connecting');
+        ecuBadge.textContent = `ECU: ${name}`;
+        ecuBadge.className = 'badge success';
+        btnReadDtc.disabled = false;
+        btnClearDtc.disabled = false;
+        btnStartLive.disabled = false;
+
+        // Start TesterPresent keep-alive
+        startTesterPresent();
+    } else {
+        statusDot.classList.remove('connecting');
+        ecuBadge.textContent = 'ECU: Error';
+        ecuBadge.className = 'badge error';
+    }
+}
+
+let testerPresentInterval = null;
+function startTesterPresent() {
+    if (testerPresentInterval) clearInterval(testerPresentInterval);
+    testerPresentInterval = setInterval(async () => {
+        if (ecuInitialized && selectedEcu && !liveDataActive) {
+            try {
+                const msg = buildKWPMessage(0xF1, selectedEcu.address, [0x3E]);
+                await writeBytes(msg);
+            } catch (e) {}
+        }
+    }, 2000);
+}
+
+// ============= Read DTCs =============
+async function readDTCs() {
+    if (!ecuInitialized || !selectedEcu) return;
+
+    log('Leyendo DTCs...', 'info');
+    btnReadDtc.disabled = true;
+
+    try {
+        rxBuffer.clear();
+        const request = buildKWPMessage(0xF1, selectedEcu.address, [0x18, 0x00, 0xFF]);
+        logHex('TX DTC', request);
+
+        const response = await sendRequest(request, 0x18, 3000);
+        logHex('RX DTC', new Uint8Array(response.data), 'success');
+
+        dtcs = parseDTCResponse(response.data);
+        renderDTCs();
+
+        if (socket && dtcs.length > 0) {
+            socket.emit('dtcs:update', {
+                dtcs: dtcs.map(d => ({ code: d.code, status: { confirmed: d.confirmed, pending: d.pending } }))
+            });
+        }
+
+        log(`Encontrados ${dtcs.length} DTCs`, dtcs.length > 0 ? 'warn' : 'success');
+        btnAnalyze.disabled = dtcs.length === 0;
+
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    } finally {
+        btnReadDtc.disabled = false;
+    }
+}
+
+function parseDTCResponse(data) {
+    const dtcs = [];
+    // Service 0x58 = positive response to 0x18
+    if (data[0] === 0x58) {
+        for (let i = 2; i < data.length - 2; i += 3) {
+            const highByte = data[i];
+            const lowByte = data[i + 1];
+            const status = data[i + 2];
+            if (highByte === 0 && lowByte === 0) continue;
+
+            const code = decodeDTC(highByte, lowByte);
+            if (code) {
+                dtcs.push({
+                    code,
+                    confirmed: (status & 0x08) !== 0,
+                    pending: (status & 0x04) !== 0,
+                    status
+                });
+            }
+        }
+    }
+    return dtcs;
+}
+
+function decodeDTC(highByte, lowByte) {
+    const firstChar = ['P', 'C', 'B', 'U'][(highByte >> 6) & 0x03];
+    const secondChar = (highByte >> 4) & 0x03;
+    const thirdChar = highByte & 0x0F;
+    const fourthChar = (lowByte >> 4) & 0x0F;
+    const fifthChar = lowByte & 0x0F;
+    return `${firstChar}${secondChar}${thirdChar.toString(16).toUpperCase()}${fourthChar.toString(16).toUpperCase()}${fifthChar.toString(16).toUpperCase()}`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function renderDTCs() {
+    if (dtcs.length === 0) {
+        dtcListEl.innerHTML = '<div class="no-dtcs">Sin codigos de error</div>';
+        return;
+    }
+    dtcListEl.innerHTML = dtcs.map(dtc => `
+        <div class="dtc-item">
+            <div>
+                <div class="dtc-code">${escapeHtml(dtc.code)}</div>
+                <div class="dtc-desc">${getDTCDescription(dtc.code)}</div>
+            </div>
+            <div class="dtc-badges">
+                ${dtc.confirmed ? '<span class="dtc-badge confirmed">Confirmado</span>' : ''}
+                ${dtc.pending ? '<span class="dtc-badge pending">Pendiente</span>' : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function getDTCDescription(code) {
+    const descriptions = {
+        'P0171': 'Sistema demasiado pobre (Banco 1)',
+        'P0174': 'Sistema demasiado pobre (Banco 2)',
+        'P0300': 'Fallo de encendido aleatorio',
+        'P0301': 'Fallo cilindro 1',
+        'P0302': 'Fallo cilindro 2',
+        'P0420': 'Catalizador eficiencia baja',
+        'P0128': 'Termostato - temp. baja',
+    };
+    return descriptions[code] || 'Descripcion no disponible';
+}
+
+// ============= Clear DTCs =============
+async function clearDTCs() {
+    if (!ecuInitialized || !selectedEcu) return;
+    if (!confirm('Borrar todos los codigos de error?')) return;
+
+    log('Borrando DTCs...', 'info');
+    btnClearDtc.disabled = true;
+
+    try {
+        const request = buildKWPMessage(0xF1, selectedEcu.address, [0x14, 0xFF, 0x00]);
+        const response = await sendRequest(request, 0x14, 3000);
+
+        if (response.service === 0x54) {
+            log('DTCs borrados', 'success');
+            dtcs = [];
+            renderDTCs();
+            if (socket) socket.emit('dtcs:update', { dtcs: [] });
+        }
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    } finally {
+        btnClearDtc.disabled = false;
+    }
+}
+
+// ============= AI Analysis =============
+async function analyzeWithAI() {
+    if (dtcs.length === 0) return;
+
+    log('Analizando con IA...', 'info');
+    btnAnalyze.disabled = true;
+
+    try {
+        const response = await fetch('/api/dtc/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dtcs: dtcs.map(d => ({ code: d.code, status: { confirmed: d.confirmed, pending: d.pending } })),
+                vehicle: { model: 'BMW E60' }
+            })
+        });
+        const analysis = await response.json();
+        renderAIAnalysis(analysis);
+    } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+    } finally {
+        btnAnalyze.disabled = false;
+    }
+}
+
+function renderAIAnalysis(analysis) {
+    let html = '<h4>Analisis IA</h4>';
+    if (analysis.summary) html += `<p><strong>Resumen:</strong> ${escapeHtml(analysis.summary)}</p>`;
+    if (analysis.combined_diagnosis) html += `<p><strong>Diagnostico:</strong> ${escapeHtml(analysis.combined_diagnosis)}</p>`;
+    if (analysis.recommended_actions?.length > 0) {
+        html += '<p><strong>Acciones:</strong></p><ul>';
+        analysis.recommended_actions.forEach(a => html += `<li>${escapeHtml(a)}</li>`);
+        html += '</ul>';
+    }
+    aiResultEl.innerHTML = html;
+    aiResultEl.classList.remove('hidden');
+}
+
+// ============= Live Data (Optimized) =============
+const PIDS = {
+    0x0C: { name: 'rpm', el: 'gauge-rpm', rate: 'rate-rpm', unit: 'RPM', calc: (a, b) => ((a * 256) + b) / 4 },
+    0x05: { name: 'temp', el: 'gauge-temp', rate: 'rate-temp', unit: 'C', calc: (a) => a - 40 },
+    0x0D: { name: 'speed', el: 'gauge-speed', rate: 'rate-speed', unit: 'km/h', calc: (a) => a },
+    0x11: { name: 'throttle', el: 'gauge-throttle', rate: 'rate-throttle', unit: '%', calc: (a) => Math.round((a * 100) / 255) },
+};
+
+const pidStats = {};
+Object.keys(PIDS).forEach(pid => {
+    pidStats[pid] = { lastUpdate: 0, updates: 0 };
+});
+
+let liveDataLoop = null;
+
+async function startLiveData() {
+    if (!ecuInitialized || !selectedEcu) return;
+
+    log('Datos en vivo iniciados', 'success');
+    liveDataActive = true;
+    btnStartLive.classList.add('hidden');
+    btnStopLive.classList.remove('hidden');
+
+    // Reset stats
+    perfStats.requestsSent = 0;
+    perfStats.responsesReceived = 0;
+    perfStats.errors = 0;
+    perfStats.latencies = [];
+    Object.keys(pidStats).forEach(pid => { pidStats[pid] = { lastUpdate: 0, updates: 0 }; });
+
+    const pollRate = parseInt(pollRateSelect.value);
+
+    // Optimized polling loop
+    liveDataLoop = setInterval(async () => {
+        if (!liveDataActive) return;
+
+        // Read all PIDs in sequence with minimal delay
+        for (const [pidStr, config] of Object.entries(PIDS)) {
+            const pid = parseInt(pidStr);
+            try {
+                const request = buildKWPMessage(0xF1, selectedEcu.address, [0x21, pid]);
+                const response = await sendRequest(request, 0x21, 300);
+
+                if (response.service === 0x61 && response.data.length > 1) {
+                    const value = config.calc(...response.data.slice(1));
+                    updateGauge(config, value, pid);
+                }
+            } catch (e) {
+                // Mark as stale
+                document.getElementById(config.el)?.classList.add('stale');
+            }
+
+            // Minimal inter-PID delay
+            await sleep(10);
+        }
+
+        // Send to server
+        if (socket) {
+            const liveData = {};
+            for (const [pid, config] of Object.entries(PIDS)) {
+                const el = document.getElementById(config.el);
+                if (el && el.textContent !== '-') {
+                    liveData[config.name] = { value: parseFloat(el.textContent), unit: config.unit };
+                }
+            }
+            socket.emit('livedata:update', liveData);
+        }
+
+        updatePerfStats();
+
+    }, pollRate);
+}
+
+function updateGauge(config, value, pid) {
+    const el = document.getElementById(config.el);
+    if (el) {
+        el.textContent = Math.round(value);
+        el.classList.remove('stale');
+    }
+
+    // Update rate
+    const now = Date.now();
+    const stat = pidStats[pid];
+    if (stat.lastUpdate > 0) {
+        const rate = 1000 / (now - stat.lastUpdate);
+        const rateEl = document.getElementById(config.rate);
+        if (rateEl) rateEl.textContent = rate.toFixed(1) + ' Hz';
+    }
+    stat.lastUpdate = now;
+    stat.updates++;
+}
+
+function stopLiveData() {
+    liveDataActive = false;
+    if (liveDataLoop) {
+        clearInterval(liveDataLoop);
+        liveDataLoop = null;
+    }
+    log('Datos en vivo detenidos', 'info');
+    btnStartLive.classList.remove('hidden');
+    btnStopLive.classList.add('hidden');
+}
+
+function updatePerfStats() {
+    const now = Date.now();
+    const elapsed = (now - perfStats.lastUpdate) / 1000;
+
+    if (elapsed >= 1) {
+        const rate = perfStats.updates / elapsed;
+        document.getElementById('stat-rate').textContent = rate.toFixed(1);
+
+        if (perfStats.latencies.length > 0) {
+            const avgLatency = perfStats.latencies.reduce((a, b) => a + b, 0) / perfStats.latencies.length;
+            document.getElementById('stat-latency').textContent = avgLatency.toFixed(0);
+            latencyBadge.textContent = `Lat: ${avgLatency.toFixed(0)}ms`;
+        }
+
+        const successRate = perfStats.requestsSent > 0
+            ? (perfStats.responsesReceived / perfStats.requestsSent * 100)
+            : 0;
+        document.getElementById('stat-success').textContent = successRate.toFixed(0);
+        document.getElementById('stat-errors').textContent = perfStats.errors;
+
+        perfStats.lastUpdate = now;
+        perfStats.updates = 0;
+    }
+
+    perfStats.updates++;
+}
+
+// ============= Event Listeners =============
+btnConnect.addEventListener('click', connectSerial);
+btnDisconnect.addEventListener('click', disconnectSerial);
+
+document.querySelectorAll('.ecu-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.classList.contains('disabled')) return;
+        document.querySelectorAll('.ecu-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        initializeEcu(parseInt(btn.dataset.address), btn.dataset.name);
+    });
+});
+
+btnReadDtc.addEventListener('click', readDTCs);
+btnClearDtc.addEventListener('click', clearDTCs);
+btnAnalyze.addEventListener('click', analyzeWithAI);
+btnStartLive.addEventListener('click', startLiveData);
+btnStopLive.addEventListener('click', stopLiveData);
+
+// ============= Init =============
+connectWebSocket();
+log('Sistema iniciado - Version 2 optimizada', 'success');
+</script>
+</body>
+</html>

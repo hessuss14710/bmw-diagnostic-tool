@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW Diagnostic Dashboard</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        .header {
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .status-badge.connected { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .status-badge.disconnected { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .status-badge.waiting { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .main-content { display: flex; flex-direction: column; gap: 20px; }
+
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #94a3b8;
+        }
+
+        /* Session selector */
+        .session-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .session-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #60a5fa;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-btn:hover { background: rgba(59, 130, 246, 0.3); }
+        .session-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .no-sessions {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        /* Vehicle info */
+        .vehicle-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            background: rgba(0,0,0,0.2);
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .info-item label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .info-item span {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        /* Gauges */
+        .gauges {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .gauge-container {
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+        .gauge-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        .gauge-unit {
+            font-size: 1rem;
+            color: #64748b;
+        }
+        .gauge-label {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        /* Chart */
+        #live-chart {
+            width: 100%;
+            height: 250px;
+        }
+
+        /* DTCs */
+        .dtc-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .dtc-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .dtc-code {
+            font-family: monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #f59e0b;
+            min-width: 70px;
+        }
+        .dtc-status {
+            display: flex;
+            gap: 5px;
+        }
+        .dtc-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .dtc-badge.confirmed { background: #dc2626; color: white; }
+        .dtc-badge.pending { background: #f59e0b; color: black; }
+        .no-dtcs { color: #22c55e; text-align: center; padding: 20px; }
+
+        /* AI Analysis */
+        .ai-analysis {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .ai-analysis h4 {
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+        .analyze-btn {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .analyze-btn:hover { opacity: 0.9; }
+        .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Chat sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 400px;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            max-height: 400px;
+        }
+        .chat-message {
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .chat-message.user {
+            background: rgba(59, 130, 246, 0.2);
+            margin-left: 20px;
+        }
+        .chat-message.assistant {
+            background: rgba(139, 92, 246, 0.2);
+            margin-right: 20px;
+        }
+        .chat-message .role {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .chat-input-container {
+            display: flex;
+            gap: 8px;
+        }
+        .chat-input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .chat-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .chat-send {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .chat-send:hover { background: #2563eb; }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 BMW Diagnostic Dashboard</h1>
+        <div>
+            <span id="connection-status" class="status-badge disconnected">Desconectado</span>
+            <span id="app-status" class="status-badge waiting">App: Esperando</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <!-- Sessions -->
+            <div class="card">
+                <h2>📡 Sesiones Activas</h2>
+                <div id="sessions" class="session-selector">
+                    <span class="no-sessions">Buscando sesiones...</span>
+                </div>
+            </div>
+
+            <!-- Vehicle Info -->
+            <div class="card" id="vehicle-card" style="display:none">
+                <h2>🚙 Vehículo</h2>
+                <div class="vehicle-info">
+                    <div class="info-item">
+                        <label>Modelo</label>
+                        <span id="vehicle-model">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>VIN</label>
+                        <span id="vehicle-vin">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Kilometraje</label>
+                        <span id="vehicle-mileage">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Data -->
+            <div class="card" id="livedata-card" style="display:none">
+                <h2>📊 Datos en Vivo</h2>
+                <div class="gauges" id="gauges"></div>
+                <div id="live-chart"></div>
+            </div>
+
+            <!-- DTCs -->
+            <div class="card" id="dtc-card" style="display:none">
+                <h2>⚠️ Códigos de Error (DTCs)</h2>
+                <div id="dtc-list" class="dtc-list">
+                    <div class="no-dtcs">Sin códigos de error</div>
+                </div>
+                <button id="analyze-btn" class="analyze-btn" style="margin-top:15px" disabled>
+                    🤖 Analizar con IA
+                </button>
+                <div id="ai-analysis" class="ai-analysis" style="display:none"></div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <!-- AI Chat -->
+            <div class="card chat-container">
+                <h2>💬 Chat con IA</h2>
+                <div id="chat-messages" class="chat-messages">
+                    <div class="chat-message assistant">
+                        <div class="role">Asistente</div>
+                        <div>Hola! Soy tu asistente de diagnóstico BMW. Conecta con una sesión para empezar.</div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" class="chat-input" placeholder="Escribe tu pregunta..." disabled>
+                    <button id="chat-send" class="chat-send" disabled>Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let socket = null;
+        let currentSession = null;
+        let dtcs = [];
+        let liveData = {};
+        let chartData = { rpm: [], temp: [], speed: [] };
+        let chart = null;
+
+        // DOM Elements
+        const connectionStatus = document.getElementById('connection-status');
+        const appStatus = document.getElementById('app-status');
+        const sessionsEl = document.getElementById('sessions');
+        const vehicleCard = document.getElementById('vehicle-card');
+        const livedataCard = document.getElementById('livedata-card');
+        const dtcCard = document.getElementById('dtc-card');
+        const dtcList = document.getElementById('dtc-list');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const aiAnalysis = document.getElementById('ai-analysis');
+        const gaugesEl = document.getElementById('gauges');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+
+        // Connect to Socket.IO
+        function connect() {
+            socket = io('/dashboard', {
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                connectionStatus.textContent = 'Conectado';
+                connectionStatus.className = 'status-badge connected';
+                console.log('Connected to server');
+                socket.emit('sessions:list');
+            });
+
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = 'Desconectado';
+                connectionStatus.className = 'status-badge disconnected';
+            });
+
+            socket.on('sessions:list', (sessions) => {
+                renderSessions(sessions);
+            });
+
+            socket.on('session:state', (data) => {
+                updateSessionState(data);
+            });
+
+            socket.on('session:updated', (session) => {
+                updateVehicleInfo(session.vehicleInfo);
+            });
+
+            socket.on('dtcs:updated', (data) => {
+                dtcs = data.dtcs;
+                renderDtcs();
+            });
+
+            socket.on('livedata:updated', (data) => {
+                liveData = data.data;
+                updateLiveData();
+            });
+
+            socket.on('ecu:status', (data) => {
+                appStatus.textContent = data.connected ? `ECU: ${data.ecu || 'Conectado'}` : 'ECU: Desconectado';
+                appStatus.className = data.connected ? 'status-badge connected' : 'status-badge disconnected';
+            });
+
+            socket.on('app:disconnected', () => {
+                appStatus.textContent = 'App: Desconectada';
+                appStatus.className = 'status-badge disconnected';
+            });
+
+            socket.on('ai:analyzing', (data) => {
+                analyzeBtn.innerHTML = '<span class="loading"></span> Analizando...';
+                analyzeBtn.disabled = true;
+            });
+
+            socket.on('ai:analysis', (analysis) => {
+                showAnalysis(analysis);
+                analyzeBtn.innerHTML = '🤖 Analizar con IA';
+                analyzeBtn.disabled = false;
+            });
+
+            socket.on('ai:error', (err) => {
+                aiAnalysis.innerHTML = `<h4>❌ Error</h4><p>${err.message}</p>`;
+                aiAnalysis.style.display = 'block';
+                analyzeBtn.innerHTML = '🤖 Analizar con IA';
+                analyzeBtn.disabled = false;
+            });
+
+            socket.on('ai:chat:response', (msg) => {
+                addChatMessage('assistant', msg.content);
+            });
+        }
+
+        function renderSessions(sessions) {
+            if (sessions.length === 0) {
+                sessionsEl.innerHTML = '<span class="no-sessions">No hay sesiones activas. Abre la app BMW Diag para crear una.</span>';
+                return;
+            }
+
+            sessionsEl.innerHTML = sessions.map(s => `
+                <button class="session-btn ${currentSession === s.id ? 'active' : ''}" data-id="${s.id}">
+                    ${s.vehicleInfo.model || 'BMW'} ${s.hasApp ? '🟢' : '🔴'}
+                    <br><small>${s.dtcCount} DTCs</small>
+                </button>
+            `).join('');
+
+            sessionsEl.querySelectorAll('.session-btn').forEach(btn => {
+                btn.addEventListener('click', () => joinSession(btn.dataset.id));
+            });
+        }
+
+        function joinSession(sessionId) {
+            currentSession = sessionId;
+            socket.emit('session:join', { sessionId });
+
+            // Enable chat
+            chatInput.disabled = false;
+            chatSend.disabled = false;
+
+            // Refresh sessions list to update active state
+            socket.emit('sessions:list');
+        }
+
+        function updateSessionState(data) {
+            const { session, dtcs: sessionDtcs, liveData: sessionLiveData } = data;
+
+            // Show cards
+            vehicleCard.style.display = 'block';
+            dtcCard.style.display = 'block';
+
+            // Update vehicle info
+            updateVehicleInfo(session.vehicleInfo);
+
+            // Update app status
+            appStatus.textContent = session.hasApp ? 'App: Conectada' : 'App: Desconectada';
+            appStatus.className = session.hasApp ? 'status-badge connected' : 'status-badge disconnected';
+
+            // Update DTCs
+            dtcs = sessionDtcs;
+            renderDtcs();
+
+            // Update live data
+            liveData = sessionLiveData;
+            if (Object.keys(liveData).length > 0) {
+                livedataCard.style.display = 'block';
+                updateLiveData();
+            }
+        }
+
+        function updateVehicleInfo(info) {
+            document.getElementById('vehicle-model').textContent = info.model || 'BMW E60';
+            document.getElementById('vehicle-vin').textContent = info.vin || '-';
+            document.getElementById('vehicle-mileage').textContent = info.mileage ? `${info.mileage} km` : '-';
+        }
+
+        // Sanitize string to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderDtcs() {
+            if (dtcs.length === 0) {
+                dtcList.innerHTML = '<div class="no-dtcs">✅ Sin códigos de error</div>';
+                analyzeBtn.disabled = true;
+                return;
+            }
+
+            analyzeBtn.disabled = false;
+            dtcList.innerHTML = dtcs.map(dtc => `
+                <div class="dtc-item">
+                    <span class="dtc-code">${escapeHtml(dtc.code)}</span>
+                    <div class="dtc-status">
+                        ${dtc.status?.confirmed ? '<span class="dtc-badge confirmed">Confirmado</span>' : ''}
+                        ${dtc.status?.pending ? '<span class="dtc-badge pending">Pendiente</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateLiveData() {
+            if (Object.keys(liveData).length === 0) return;
+
+            livedataCard.style.display = 'block';
+
+            // Define gauge mappings
+            const gaugeConfig = {
+                rpm: { label: 'RPM', color: '#3b82f6', unit: '' },
+                coolant_temp: { label: 'Temp. Motor', color: '#ef4444', unit: '°C' },
+                speed: { label: 'Velocidad', color: '#22c55e', unit: 'km/h' },
+                throttle: { label: 'Acelerador', color: '#f59e0b', unit: '%' },
+                fuel_level: { label: 'Combustible', color: '#8b5cf6', unit: '%' },
+                battery: { label: 'Batería', color: '#06b6d4', unit: 'V' }
+            };
+
+            // Render gauges
+            let gaugesHtml = '';
+            for (const [key, config] of Object.entries(gaugeConfig)) {
+                if (liveData[key]) {
+                    const val = liveData[key].value;
+                    const unit = liveData[key].unit || config.unit;
+                    gaugesHtml += `
+                        <div class="gauge-container">
+                            <div class="gauge-value" style="color:${config.color}">${val.toFixed(0)}</div>
+                            <div class="gauge-unit">${unit}</div>
+                            <div class="gauge-label">${config.label}</div>
+                        </div>
+                    `;
+
+                    // Update chart data
+                    if (key === 'rpm' || key === 'coolant_temp' || key === 'speed') {
+                        const chartKey = key === 'coolant_temp' ? 'temp' : key;
+                        chartData[chartKey].push(val);
+                        if (chartData[chartKey].length > 60) chartData[chartKey].shift();
+                    }
+                }
+            }
+            gaugesEl.innerHTML = gaugesHtml;
+
+            // Update chart
+            updateChart();
+        }
+
+        function initChart() {
+            const options = {
+                chart: {
+                    type: 'line',
+                    height: 250,
+                    background: 'transparent',
+                    toolbar: { show: false },
+                    animations: { enabled: true, dynamicAnimation: { speed: 300 } }
+                },
+                series: [
+                    { name: 'RPM', data: [] },
+                    { name: 'Temp', data: [] },
+                    { name: 'Velocidad', data: [] }
+                ],
+                stroke: { curve: 'smooth', width: 2 },
+                colors: ['#3b82f6', '#ef4444', '#22c55e'],
+                xaxis: { labels: { show: false }, axisBorder: { show: false } },
+                yaxis: [
+                    { labels: { style: { colors: '#3b82f6' } }, max: 8000 },
+                    { opposite: true, labels: { style: { colors: '#ef4444' } }, max: 120 },
+                    { show: false, max: 250 }
+                ],
+                legend: { labels: { colors: '#94a3b8' } },
+                grid: { borderColor: 'rgba(255,255,255,0.1)' },
+                theme: { mode: 'dark' }
+            };
+            chart = new ApexCharts(document.getElementById('live-chart'), options);
+            chart.render();
+        }
+
+        function updateChart() {
+            if (!chart) return;
+            chart.updateSeries([
+                { name: 'RPM', data: chartData.rpm },
+                { name: 'Temp', data: chartData.temp },
+                { name: 'Velocidad', data: chartData.speed }
+            ]);
+        }
+
+        function showAnalysis(analysis) {
+            let html = '<h4>🤖 Análisis IA</h4>';
+
+            if (analysis.summary) {
+                html += `<p><strong>Resumen:</strong> ${escapeHtml(analysis.summary)}</p>`;
+            }
+
+            if (analysis.combined_diagnosis) {
+                html += `<p><strong>Diagnóstico:</strong> ${escapeHtml(analysis.combined_diagnosis)}</p>`;
+            }
+
+            if (analysis.recommended_actions && analysis.recommended_actions.length > 0) {
+                html += '<p><strong>Acciones recomendadas:</strong></p><ul>';
+                analysis.recommended_actions.forEach(a => html += `<li>${escapeHtml(a)}</li>`);
+                html += '</ul>';
+            }
+
+            if (analysis.safety_warning) {
+                html += `<p style="color:#ef4444"><strong>⚠️ Aviso:</strong> ${escapeHtml(analysis.safety_warning)}</p>`;
+            }
+
+            aiAnalysis.innerHTML = html;
+            aiAnalysis.style.display = 'block';
+        }
+
+        function addChatMessage(role, content) {
+            const div = document.createElement('div');
+            div.className = `chat-message ${role}`;
+
+            const roleDiv = document.createElement('div');
+            roleDiv.className = 'role';
+            roleDiv.textContent = role === 'user' ? 'Tú' : 'Asistente';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.textContent = content; // Safe: no HTML injection
+
+            div.appendChild(roleDiv);
+            div.appendChild(contentDiv);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function sendChat() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addChatMessage('user', message);
+            chatInput.value = '';
+
+            socket.emit('ai:chat', { message });
+        }
+
+        // Event listeners
+        analyzeBtn.addEventListener('click', () => {
+            if (dtcs.length > 0) {
+                socket.emit('ai:analyze', { dtcs });
+            }
+        });
+
+        chatSend.addEventListener('click', sendChat);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChat();
+        });
+
+        // Initialize
+        initChart();
+        connect();
+
+        // Refresh sessions every 10 seconds
+        setInterval(() => {
+            if (socket && socket.connected) {
+                socket.emit('sessions:list');
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

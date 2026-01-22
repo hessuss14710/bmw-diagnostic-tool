@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW Diagnostic Tool - Descarga</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 50px;
+        }
+        .feature {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .feature h3 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        .feature p {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .downloads {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+        .downloads h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 1.5rem;
+        }
+        .download-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .download-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 24px;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        .download-btn .info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .download-btn .icon {
+            font-size: 24px;
+        }
+        .download-btn .details {
+            text-align: left;
+        }
+        .download-btn .name {
+            font-size: 1rem;
+        }
+        .download-btn .desc {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        .download-btn .size {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+        .requirements {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 40px;
+        }
+        .requirements h3 {
+            margin-bottom: 15px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .requirements ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .requirements li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+        }
+        .requirements li::before {
+            content: "✓";
+            color: #22c55e;
+        }
+        .api-status {
+            text-align: center;
+            padding: 15px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .api-status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85rem;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🚗</div>
+            <h1>BMW Diagnostic Tool</h1>
+            <p class="subtitle">Diagnóstico profesional para BMW E60 con cable K+DCAN</p>
+        </header>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <h3>Leer DTCs</h3>
+                <p>Lee códigos de error de todas las ECUs</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🗑️</div>
+                <h3>Borrar Errores</h3>
+                <p>Elimina códigos de error almacenados</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <h3>Datos en Vivo</h3>
+                <p>RPM, temperatura, velocidad y más</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <h3>Análisis IA</h3>
+                <p>ChatGPT analiza los códigos de error</p>
+            </div>
+        </div>
+
+        <div id="api-status" class="api-status">
+            Verificando conexión con servidor...
+        </div>
+
+        <div class="downloads">
+            <h2>Descargar para Linux</h2>
+            <div class="download-buttons">
+                <a href="/downloads/BMW%20Diag_0.1.0_amd64.AppImage" class="download-btn">
+                    <div class="info">
+                        <span class="icon">📦</span>
+                        <div class="details">
+                            <div class="name">AppImage</div>
+                            <div class="desc">Universal - Ejecutable directo</div>
+                        </div>
+                    </div>
+                    <span class="size">96 MB</span>
+                </a>
+                <a href="/downloads/BMW%20Diag_0.1.0_amd64.deb" class="download-btn">
+                    <div class="info">
+                        <span class="icon">🐧</span>
+                        <div class="details">
+                            <div class="name">DEB Package</div>
+                            <div class="desc">Debian, Ubuntu, Linux Mint</div>
+                        </div>
+                    </div>
+                    <span class="size">3.2 MB</span>
+                </a>
+                <a href="/downloads/BMW%20Diag-0.1.0-1.x86_64.rpm" class="download-btn">
+                    <div class="info">
+                        <span class="icon">🎩</span>
+                        <div class="details">
+                            <div class="name">RPM Package</div>
+                            <div class="desc">Fedora, RHEL, CentOS</div>
+                        </div>
+                    </div>
+                    <span class="size">3.2 MB</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="requirements">
+            <h3>Requisitos</h3>
+            <ul>
+                <li>Cable K+DCAN con chip FTDI</li>
+                <li>BMW E60 (2003-2010)</li>
+                <li>Linux 64-bit</li>
+                <li>Puerto USB disponible</li>
+            </ul>
+        </div>
+
+        <div class="dashboard-link" style="text-align:center; margin-bottom: 40px;">
+            <div style="display:flex; flex-direction:column; gap:15px; align-items:center;">
+                <a href="/diagnostico-v2.html" style="display:inline-flex; align-items:center; gap:10px; background:linear-gradient(135deg, #22c55e, #16a34a); color:white; text-decoration:none; padding:16px 32px; border-radius:12px; font-weight:600; font-size:1.1rem;">
+                    🔧 Diagnostico v2 (Optimizado)
+                    <span style="font-size:0.8rem; opacity:0.8">→</span>
+                </a>
+                <p style="color:#64748b; font-size:0.85rem;">Version optimizada con mejor rendimiento en tiempo real</p>
+
+                <a href="/diagnostico-daemon.html" style="display:inline-flex; align-items:center; gap:10px; background:linear-gradient(135deg, #f59e0b, #d97706); color:black; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:600; font-size:1rem; margin-top:10px;">
+                    Modo Daemon (Maxima Precision)
+                    <span style="font-size:0.7rem; opacity:0.8">us</span>
+                </a>
+                <p style="color:#64748b; font-size:0.8rem;">Requiere ejecutar daemon local en Windows</p>
+
+                <a href="/diagnostico.html" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.1); color:#94a3b8; text-decoration:none; padding:8px 16px; border-radius:8px; font-size:0.85rem; margin-top:10px;">
+                    Version basica (v1)
+                </a>
+
+                <a href="/dashboard.html" style="display:inline-flex; align-items:center; gap:10px; background:linear-gradient(135deg, #8b5cf6, #6366f1); color:white; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:600; font-size:1rem;">
+                    📊 Ver Dashboard en Vivo
+                    <span style="font-size:0.8rem; opacity:0.8">→</span>
+                </a>
+                <p style="color:#64748b; font-size:0.85rem;">Ve los datos en tiempo real desde cualquier dispositivo</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Versión 0.1.0 • <a href="/diagnostico.html">Diagnóstico Web</a> • <a href="/dashboard.html">Dashboard</a> • <a href="/api/health">API</a></p>
+        </footer>
+    </div>
+
+    <script>
+        async function checkAPI() {
+            const statusEl = document.getElementById('api-status');
+            try {
+                const res = await fetch('/api/health');
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    statusEl.innerHTML = '✅ Servidor API activo - Análisis IA disponible';
+                    statusEl.classList.remove('error');
+                } else {
+                    throw new Error('API not ok');
+                }
+            } catch (e) {
+                statusEl.innerHTML = '⚠️ Servidor API no disponible - Funciona sin conexión';
+                statusEl.classList.add('error');
+            }
+        }
+        checkAPI();
+    </script>
+</body>
+</html>

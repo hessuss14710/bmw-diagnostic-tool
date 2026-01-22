@@ -1,0 +1,160 @@
+================================================================================
+        BMW DIAGNOSTIC TOOL - INSTRUCCIONES DE USO
+        Para BMW E60 520d con cable K+DCAN FTDI
+================================================================================
+
+ARCHIVOS GENERADOS:
+-------------------
+  - BMW Diag_0.1.0_amd64.deb      -> Para instalar en Debian/Ubuntu
+  - BMW Diag_0.1.0_amd64.AppImage -> Ejecutable universal (recomendado)
+  - install-debian.sh             -> Script de configuracion del sistema
+
+Ubicacion: /srv/taller/app/src-tauri/target/release/bundle/
+
+
+================================================================================
+PREPARACION DEL USB LIVE CON DEBIAN
+================================================================================
+
+1. Descargar Debian Live (XFCE o GNOME):
+   https://www.debian.org/CD/live/
+
+2. Crear USB booteable con Ventoy o Rufus
+
+3. Copiar al USB:
+   - BMW Diag_0.1.0_amd64.AppImage
+   - install-debian.sh
+
+
+================================================================================
+PRIMER USO (una sola vez)
+================================================================================
+
+1. Arrancar desde el USB de Debian
+
+2. Abrir terminal y ejecutar:
+
+   sudo bash /media/usb/install-debian.sh
+
+3. Cerrar sesion y volver a entrar (para aplicar permisos)
+
+4. Conectar cable K+DCAN al puerto USB
+
+5. Verificar que se detecta:
+
+   ls -la /dev/ttyUSB*
+
+   Deberia mostrar algo como:
+   crw-rw-rw- 1 root dialout ... /dev/ttyUSB0
+
+
+================================================================================
+USO NORMAL (cada vez que diagnostiques)
+================================================================================
+
+1. Arrancar desde USB de Debian
+
+2. Conectar cable K+DCAN al USB del portatil
+
+3. Conectar cable OBD al coche (puerto OBD bajo el volante)
+
+4. Poner contacto (NO arrancar motor para funciones DPF)
+
+5. Ejecutar la aplicacion:
+
+   /media/usb/BMW_Diag_0.1.0_amd64.AppImage
+
+6. En la aplicacion:
+   a) Seleccionar puerto: /dev/ttyUSB0
+   b) Click "Connect"
+   c) Ir a pestana "Diagnostics"
+   d) Seleccionar ECU: "DDE" (Digital Diesel Electronics)
+   e) Click "Initialize"
+
+
+================================================================================
+FUNCIONES DPF
+================================================================================
+
+Una vez conectado e inicializado con DDE:
+
+1. Ir a pestana "DPF"
+
+2. Click "Iniciar Sesion" (sesion extendida)
+
+3. Si es necesario, click "Desbloquear" (acceso seguridad)
+
+4. Funciones disponibles:
+
+   [Leer Estado]
+   - Muestra carga de hollin, cenizas, temperaturas, etc.
+
+   [Reset Cenizas]
+   - Resetea el contador de cenizas acumuladas
+   - Usar despues de limpiar el DPF
+
+   [Reset Modelo DPF]
+   - Resetea los valores de adaptacion aprendidos
+   - Usar si el DPF tiene comportamiento erratico
+
+   [DPF Nuevo Instalado]
+   - Registra que se ha instalado un DPF nuevo
+   - IMPORTANTE: Usar solo cuando se instala DPF nuevo
+
+   [Regeneracion Forzada]
+   - PELIGRO: Solo con vehiculo parado y motor en marcha
+   - Temperaturas de escape pueden superar 600C
+   - No tocar el tubo de escape durante el proceso
+
+
+================================================================================
+SECUENCIA PARA "DPF NUEVO INSTALADO"
+================================================================================
+
+Cuando instales un DPF nuevo, sigue este orden:
+
+1. Conectar y seleccionar DDE
+2. Iniciar Sesion Extendida
+3. Desbloquear Seguridad (si es necesario)
+4. Click "Reset Cenizas"
+5. Click "Reset Modelo DPF"
+6. Click "DPF Nuevo Instalado"
+7. Desconectar y arrancar motor
+8. Realizar ciclo de conduccion (20-30 min autopista)
+
+
+================================================================================
+SOLUCION DE PROBLEMAS
+================================================================================
+
+"No se detecta /dev/ttyUSB0":
+  - Verificar que el cable esta bien conectado
+  - Ejecutar: sudo dmesg | tail -20
+  - Buscar errores de FTDI
+
+"Permission denied":
+  - Ejecutar: sudo chmod 666 /dev/ttyUSB0
+  - O volver a ejecutar install-debian.sh
+
+"No response from ECU":
+  - Verificar contacto puesto (luces del cuadro encendidas)
+  - Verificar conexion OBD bien insertada
+  - Probar con motor arrancado
+
+"Session rejected" o "Security access denied":
+  - Algunos DDE requieren motor arrancado
+  - Esperar 10 segundos y reintentar
+  - Puede requerir algoritmo de seguridad especifico
+
+
+================================================================================
+NOTAS IMPORTANTES
+================================================================================
+
+- El cable K+DCAN debe tener el interruptor en posicion D-CAN para E60
+- Si el cable no tiene interruptor, la app lo configura automaticamente
+- Las funciones DPF pueden variar segun version de DDE
+- Si una rutina falla, prueba con motor arrancado
+- Guarda siempre los codigos de error antes de borrarlos
+
+================================================================================

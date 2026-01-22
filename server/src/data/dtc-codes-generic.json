@@ -1,0 +1,282 @@
+{
+  "P0100": {
+    "description": "Mass or Volume Air Flow Circuit Malfunction",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Poor acceleration", "Rough idle", "Engine stalling"],
+    "causes": ["Faulty MAF sensor", "Air leak in intake", "Dirty air filter", "Wiring issues"],
+    "repairs": ["Clean or replace MAF sensor", "Check intake for leaks", "Replace air filter"]
+  },
+  "P0101": {
+    "description": "Mass or Volume Air Flow Circuit Range/Performance Problem",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Reduced power", "Poor fuel economy", "Rough idle"],
+    "causes": ["Contaminated MAF sensor", "Vacuum leak", "Restricted air filter"],
+    "repairs": ["Clean MAF sensor", "Inspect vacuum lines", "Replace air filter"]
+  },
+  "P0102": {
+    "description": "Mass or Volume Air Flow Circuit Low Input",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Engine runs rich", "Black smoke", "Poor performance"],
+    "causes": ["Faulty MAF sensor", "Open circuit", "Low voltage supply"],
+    "repairs": ["Test MAF sensor output", "Check wiring", "Verify power supply"]
+  },
+  "P0103": {
+    "description": "Mass or Volume Air Flow Circuit High Input",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Engine runs lean", "Hesitation", "Misfires"],
+    "causes": ["Short circuit", "Faulty MAF sensor", "Signal wire shorted to voltage"],
+    "repairs": ["Inspect wiring harness", "Replace MAF sensor"]
+  },
+  "P0110": {
+    "description": "Intake Air Temperature Circuit Malfunction",
+    "category": "fuel_air",
+    "severity": "low",
+    "symptoms": ["Hard starting", "Poor fuel economy"],
+    "causes": ["Faulty IAT sensor", "Wiring fault", "Poor connection"],
+    "repairs": ["Replace IAT sensor", "Repair wiring"]
+  },
+  "P0115": {
+    "description": "Engine Coolant Temperature Circuit Malfunction",
+    "category": "cooling",
+    "severity": "moderate",
+    "symptoms": ["Poor fuel economy", "Hard starting when cold", "Engine overheating"],
+    "causes": ["Faulty ECT sensor", "Wiring fault", "Corrosion"],
+    "repairs": ["Replace ECT sensor", "Check wiring", "Clean connections"]
+  },
+  "P0120": {
+    "description": "Throttle/Pedal Position Sensor/Switch A Circuit Malfunction",
+    "category": "fuel_air",
+    "severity": "high",
+    "symptoms": ["Limp mode", "Erratic idle", "Acceleration problems"],
+    "causes": ["Faulty TPS", "Wiring damage", "Connector corrosion"],
+    "repairs": ["Replace TPS", "Inspect wiring", "Clean connectors"]
+  },
+  "P0130": {
+    "description": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Poor fuel economy", "Failed emissions test", "Check engine light"],
+    "causes": ["Faulty O2 sensor", "Exhaust leak", "Wiring damage"],
+    "repairs": ["Replace O2 sensor", "Fix exhaust leaks", "Repair wiring"]
+  },
+  "P0171": {
+    "description": "System Too Lean (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Hesitation", "Lack of power"],
+    "causes": ["Vacuum leak", "Faulty MAF", "Fuel system issue", "Exhaust leak before O2 sensor"],
+    "repairs": ["Check for vacuum leaks", "Clean/replace MAF", "Check fuel pressure"]
+  },
+  "P0172": {
+    "description": "System Too Rich (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Black smoke", "Poor fuel economy", "Rough idle"],
+    "causes": ["Faulty fuel injector", "High fuel pressure", "Faulty O2 sensor", "Clogged air filter"],
+    "repairs": ["Check fuel injectors", "Test fuel pressure", "Replace O2 sensor"]
+  },
+  "P0174": {
+    "description": "System Too Lean (Bank 2)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Hesitation", "Lack of power"],
+    "causes": ["Vacuum leak", "Faulty MAF", "Fuel system issue"],
+    "repairs": ["Check for vacuum leaks", "Clean/replace MAF", "Check fuel pressure"]
+  },
+  "P0175": {
+    "description": "System Too Rich (Bank 2)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Black smoke", "Poor fuel economy", "Rough idle"],
+    "causes": ["Faulty fuel injector", "High fuel pressure", "Faulty O2 sensor"],
+    "repairs": ["Check fuel injectors", "Test fuel pressure", "Replace O2 sensor"]
+  },
+  "P0300": {
+    "description": "Random/Multiple Cylinder Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Hesitation", "Reduced power", "Increased emissions"],
+    "causes": ["Worn spark plugs", "Faulty ignition coils", "Vacuum leak", "Low fuel pressure", "Faulty injectors"],
+    "repairs": ["Replace spark plugs", "Test ignition coils", "Check for vacuum leaks", "Test fuel pressure"]
+  },
+  "P0301": {
+    "description": "Cylinder 1 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0302": {
+    "description": "Cylinder 2 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0303": {
+    "description": "Cylinder 3 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0304": {
+    "description": "Cylinder 4 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0305": {
+    "description": "Cylinder 5 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0306": {
+    "description": "Cylinder 6 Misfire Detected",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Lack of power", "Engine vibration"],
+    "causes": ["Faulty spark plug", "Bad ignition coil", "Fuel injector issue", "Compression problem"],
+    "repairs": ["Replace spark plug", "Test/replace ignition coil", "Check injector", "Perform compression test"]
+  },
+  "P0325": {
+    "description": "Knock Sensor 1 Circuit Malfunction (Bank 1)",
+    "category": "ignition",
+    "severity": "moderate",
+    "symptoms": ["Reduced power", "Pinging under load", "Poor fuel economy"],
+    "causes": ["Faulty knock sensor", "Wiring problem", "ECU issue"],
+    "repairs": ["Replace knock sensor", "Check wiring", "Use correct fuel octane"]
+  },
+  "P0335": {
+    "description": "Crankshaft Position Sensor A Circuit Malfunction",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["No start", "Stalling", "Rough running"],
+    "causes": ["Faulty CKP sensor", "Damaged reluctor wheel", "Wiring issue"],
+    "repairs": ["Replace CKP sensor", "Inspect reluctor wheel", "Check wiring"]
+  },
+  "P0340": {
+    "description": "Camshaft Position Sensor A Circuit Malfunction (Bank 1)",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["No start", "Rough idle", "Stalling"],
+    "causes": ["Faulty CMP sensor", "Timing chain stretched", "Wiring problem"],
+    "repairs": ["Replace CMP sensor", "Check timing chain", "Inspect wiring"]
+  },
+  "P0401": {
+    "description": "Exhaust Gas Recirculation Flow Insufficient Detected",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Knocking", "Failed emissions"],
+    "causes": ["Clogged EGR passages", "Faulty EGR valve", "Carbon buildup"],
+    "repairs": ["Clean EGR passages", "Replace EGR valve", "Decarbonize intake"]
+  },
+  "P0420": {
+    "description": "Catalyst System Efficiency Below Threshold (Bank 1)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "Reduced fuel economy", "Failed emissions"],
+    "causes": ["Failing catalytic converter", "Exhaust leak", "Faulty O2 sensors", "Engine misfire"],
+    "repairs": ["Replace catalytic converter", "Fix exhaust leaks", "Replace O2 sensors", "Fix misfires first"]
+  },
+  "P0430": {
+    "description": "Catalyst System Efficiency Below Threshold (Bank 2)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "Reduced fuel economy", "Failed emissions"],
+    "causes": ["Failing catalytic converter", "Exhaust leak", "Faulty O2 sensors"],
+    "repairs": ["Replace catalytic converter", "Fix exhaust leaks", "Replace O2 sensors"]
+  },
+  "P0440": {
+    "description": "Evaporative Emission Control System Malfunction",
+    "category": "emissions",
+    "severity": "low",
+    "symptoms": ["Check engine light", "Fuel smell"],
+    "causes": ["Loose gas cap", "Leak in EVAP system", "Faulty purge valve"],
+    "repairs": ["Tighten gas cap", "Smoke test EVAP system", "Replace purge valve"]
+  },
+  "P0442": {
+    "description": "Evaporative Emission Control System Leak Detected (Small Leak)",
+    "category": "emissions",
+    "severity": "low",
+    "symptoms": ["Check engine light", "Slight fuel smell"],
+    "causes": ["Loose gas cap", "Small EVAP leak", "Faulty vent valve"],
+    "repairs": ["Check gas cap", "Smoke test system", "Replace vent valve"]
+  },
+  "P0455": {
+    "description": "Evaporative Emission Control System Leak Detected (Gross Leak)",
+    "category": "emissions",
+    "severity": "low",
+    "symptoms": ["Check engine light", "Fuel smell"],
+    "causes": ["Missing gas cap", "Disconnected EVAP hose", "Cracked canister"],
+    "repairs": ["Install gas cap", "Reconnect hoses", "Replace charcoal canister"]
+  },
+  "P0500": {
+    "description": "Vehicle Speed Sensor Malfunction",
+    "category": "drivetrain",
+    "severity": "moderate",
+    "symptoms": ["Speedometer not working", "Transmission shift issues", "Cruise control inoperative"],
+    "causes": ["Faulty VSS", "Wiring damage", "Connector corrosion"],
+    "repairs": ["Replace VSS", "Repair wiring", "Clean connectors"]
+  },
+  "P0505": {
+    "description": "Idle Control System Malfunction",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Erratic idle", "Stalling", "High idle"],
+    "causes": ["Dirty throttle body", "Faulty IAC valve", "Vacuum leak"],
+    "repairs": ["Clean throttle body", "Replace IAC valve", "Check vacuum lines"]
+  },
+  "P0562": {
+    "description": "System Voltage Low",
+    "category": "electrical",
+    "severity": "moderate",
+    "symptoms": ["Dim lights", "Slow cranking", "Multiple warning lights"],
+    "causes": ["Weak battery", "Failing alternator", "Loose connections"],
+    "repairs": ["Test/replace battery", "Test/replace alternator", "Clean battery terminals"]
+  },
+  "P0563": {
+    "description": "System Voltage High",
+    "category": "electrical",
+    "severity": "moderate",
+    "symptoms": ["Bulbs burning out frequently", "Electrical issues"],
+    "causes": ["Faulty voltage regulator", "Bad alternator", "Poor grounds"],
+    "repairs": ["Replace voltage regulator", "Replace alternator", "Check ground connections"]
+  },
+  "P0600": {
+    "description": "Serial Communication Link Malfunction",
+    "category": "network",
+    "severity": "high",
+    "symptoms": ["Multiple warning lights", "No communication with modules"],
+    "causes": ["CAN bus fault", "Module failure", "Wiring short"],
+    "repairs": ["Check CAN bus wiring", "Test individual modules", "Repair shorts"]
+  },
+  "P0700": {
+    "description": "Transmission Control System Malfunction",
+    "category": "transmission",
+    "severity": "high",
+    "symptoms": ["Harsh shifts", "Limp mode", "No shifts"],
+    "causes": ["TCM failure", "Sensor fault", "Solenoid issue"],
+    "repairs": ["Read transmission codes", "Check TCM", "Test solenoids"]
+  },
+  "P0715": {
+    "description": "Input/Turbine Speed Sensor Circuit Malfunction",
+    "category": "transmission",
+    "severity": "high",
+    "symptoms": ["Harsh shifts", "Incorrect gear selection"],
+    "causes": ["Faulty speed sensor", "Wiring fault", "Low transmission fluid"],
+    "repairs": ["Replace speed sensor", "Check wiring", "Check fluid level"]
+  }
+}

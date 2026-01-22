@@ -1,0 +1,362 @@
+{
+  "P1083": {
+    "description": "Fuel Control Mixture Lean (Bank 1 Sensor 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Poor acceleration", "Check engine light"],
+    "causes": ["Vacuum leak", "Faulty MAF sensor", "Fuel pressure low", "Intake gasket leak"],
+    "repairs": ["Check for vacuum leaks", "Clean/replace MAF", "Test fuel pressure", "Inspect intake gaskets"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P1084": {
+    "description": "Fuel Control Mixture Rich (Bank 1 Sensor 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Black smoke", "Poor fuel economy", "Rough idle"],
+    "causes": ["Leaking injectors", "Faulty fuel pressure regulator", "Stuck open purge valve"],
+    "repairs": ["Test fuel injectors", "Check fuel pressure regulator", "Test EVAP purge valve"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P1188": {
+    "description": "Fuel Control (Bank 1) At High Limit",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Lean running", "Hesitation", "Reduced power"],
+    "causes": ["Large vacuum leak", "Fuel delivery problem", "MAF sensor fault"],
+    "repairs": ["Smoke test intake", "Check fuel system", "Replace MAF sensor"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "P1189": {
+    "description": "Fuel Control (Bank 2) At High Limit",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Lean running", "Hesitation", "Reduced power"],
+    "causes": ["Large vacuum leak", "Fuel delivery problem", "MAF sensor fault"],
+    "repairs": ["Smoke test intake", "Check fuel system", "Replace MAF sensor"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "P1345": {
+    "description": "Misfire Cylinder 1 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault", "Compression loss"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector", "Compression test"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1346": {
+    "description": "Misfire Cylinder 2 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1347": {
+    "description": "Misfire Cylinder 3 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1348": {
+    "description": "Misfire Cylinder 4 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1349": {
+    "description": "Misfire Cylinder 5 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E39"]
+  },
+  "P1350": {
+    "description": "Misfire Cylinder 6 With Fuel Cut-off",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "Loss of power", "Engine shaking"],
+    "causes": ["Bad ignition coil", "Worn spark plug", "Injector fault"],
+    "repairs": ["Replace ignition coil", "Replace spark plug", "Test injector"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E39"]
+  },
+  "P1397": {
+    "description": "Camshaft Position Sensor B (Exhaust) Circuit - Bank 1",
+    "category": "ignition",
+    "severity": "high",
+    "symptoms": ["Rough running", "No start", "Loss of power"],
+    "causes": ["Faulty exhaust cam sensor", "Wiring issue", "VANOS problem"],
+    "repairs": ["Replace exhaust cam sensor", "Check wiring", "Inspect VANOS"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P1519": {
+    "description": "Intake Camshaft Control (Bank 1) Circuit - Signal Too Low",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power", "Engine noise"],
+    "causes": ["VANOS solenoid failure", "Low oil pressure", "Timing chain stretch"],
+    "repairs": ["Replace VANOS solenoid", "Check oil level/pressure", "Inspect timing chain"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1520": {
+    "description": "Intake Camshaft Control (Bank 1) Circuit - Signal Too High",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power", "VANOS rattle"],
+    "causes": ["VANOS solenoid stuck", "Wiring short", "ECU fault"],
+    "repairs": ["Replace VANOS solenoid", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46", "E39"]
+  },
+  "P1523": {
+    "description": "Exhaust Camshaft Control (Bank 1) Circuit - Signal Too Low",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power", "Engine noise"],
+    "causes": ["VANOS solenoid failure", "Low oil pressure", "Timing chain stretch"],
+    "repairs": ["Replace VANOS solenoid", "Check oil level/pressure", "Inspect timing chain"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "P1524": {
+    "description": "Exhaust Camshaft Control (Bank 1) Circuit - Signal Too High",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power"],
+    "causes": ["VANOS solenoid stuck", "Wiring short"],
+    "repairs": ["Replace VANOS solenoid", "Check wiring"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "P2096": {
+    "description": "Post Catalyst Fuel Trim System Too Lean (Bank 1)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "Poor fuel economy"],
+    "causes": ["Exhaust leak before cat", "Faulty rear O2 sensor", "Catalyst degradation"],
+    "repairs": ["Check for exhaust leaks", "Replace rear O2 sensor", "Test catalytic converter"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2097": {
+    "description": "Post Catalyst Fuel Trim System Too Rich (Bank 1)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "Sulfur smell"],
+    "causes": ["Rich running engine", "Faulty rear O2 sensor", "Catalyst contamination"],
+    "repairs": ["Fix rich condition first", "Replace rear O2 sensor", "Replace catalytic converter"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2177": {
+    "description": "System Too Lean Off Idle (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Hesitation during acceleration", "Rough running above idle"],
+    "causes": ["Intake manifold leak", "Faulty fuel injector", "Fuel pump weak"],
+    "repairs": ["Check intake manifold gaskets", "Test fuel injectors", "Check fuel pressure"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90"]
+  },
+  "P2178": {
+    "description": "System Too Rich Off Idle (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rich exhaust smell", "Black smoke during acceleration"],
+    "causes": ["Leaking fuel injector", "High fuel pressure", "Faulty MAF"],
+    "repairs": ["Test fuel injectors", "Check fuel pressure regulator", "Replace MAF sensor"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90"]
+  },
+  "P2187": {
+    "description": "System Too Lean At Idle (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Stalling at idle", "Lean misfire"],
+    "causes": ["Vacuum leak", "PCV valve fault", "Intake gasket leak"],
+    "repairs": ["Smoke test for vacuum leaks", "Replace PCV valve", "Inspect intake gaskets"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2188": {
+    "description": "System Too Rich At Idle (Bank 1)",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rich idle", "Black smoke at idle", "Fuel smell"],
+    "causes": ["Leaking injector", "Stuck open purge valve", "Faulty O2 sensor"],
+    "repairs": ["Test fuel injectors", "Check EVAP purge valve", "Replace O2 sensor"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2270": {
+    "description": "O2 Sensor Signal Stuck Lean (Bank 1 Sensor 2)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "May not pass emissions"],
+    "causes": ["Faulty downstream O2 sensor", "Exhaust leak", "Catalytic converter fault"],
+    "repairs": ["Replace downstream O2 sensor", "Fix exhaust leaks", "Test catalytic converter"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2271": {
+    "description": "O2 Sensor Signal Stuck Rich (Bank 1 Sensor 2)",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "May not pass emissions"],
+    "causes": ["Faulty downstream O2 sensor", "Engine running rich", "Catalytic converter saturated"],
+    "repairs": ["Replace downstream O2 sensor", "Fix rich running condition", "Replace catalytic converter"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "P2401": {
+    "description": "EVAP Leak Detection Pump Control Circuit Low",
+    "category": "emissions",
+    "severity": "low",
+    "symptoms": ["Check engine light", "May have fuel smell"],
+    "causes": ["Faulty leak detection pump", "Wiring issue", "Poor ground"],
+    "repairs": ["Replace leak detection pump", "Check wiring", "Check grounds"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90"]
+  },
+  "P2402": {
+    "description": "EVAP Leak Detection Pump Control Circuit High",
+    "category": "emissions",
+    "severity": "low",
+    "symptoms": ["Check engine light"],
+    "causes": ["Faulty leak detection pump", "Short to power", "ECU fault"],
+    "repairs": ["Replace leak detection pump", "Check wiring for shorts"],
+    "bmw_specific": false,
+    "affected_models": ["E60", "E90"]
+  },
+  "2A7B": {
+    "description": "NOx Sensor, Plausibility",
+    "category": "emissions",
+    "severity": "moderate",
+    "symptoms": ["Check engine light", "Reduced power"],
+    "causes": ["Faulty NOx sensor", "Exhaust leak", "SCR system fault"],
+    "repairs": ["Replace NOx sensor", "Check for exhaust leaks", "Inspect SCR system"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "F10"]
+  },
+  "2A82": {
+    "description": "Intake Air Temperature Sensor - Plausibility",
+    "category": "fuel_air",
+    "severity": "low",
+    "symptoms": ["Check engine light", "Slightly reduced performance"],
+    "causes": ["Faulty IAT sensor", "Wiring fault", "Air leak near sensor"],
+    "repairs": ["Replace IAT sensor", "Check wiring", "Inspect intake system"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "2A87": {
+    "description": "Intake Manifold Pressure Sensor - Plausibility",
+    "category": "fuel_air",
+    "severity": "moderate",
+    "symptoms": ["Rough idle", "Reduced power", "Check engine light"],
+    "causes": ["Faulty MAP sensor", "Vacuum leak", "Clogged intake"],
+    "repairs": ["Replace MAP sensor", "Check for vacuum leaks", "Clean intake manifold"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90", "E46"]
+  },
+  "29CD": {
+    "description": "Exhaust Camshaft VANOS - Position Control",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power", "VANOS rattle on cold start"],
+    "causes": ["Worn VANOS unit", "Low oil pressure", "Timing chain stretch", "Dirty oil"],
+    "repairs": ["Replace VANOS unit", "Check oil pressure", "Replace timing chain", "Oil change"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "29CC": {
+    "description": "Intake Camshaft VANOS - Position Control",
+    "category": "variable_timing",
+    "severity": "high",
+    "symptoms": ["Rough idle", "Loss of power", "Engine rattle"],
+    "causes": ["Worn VANOS unit", "Low oil pressure", "Timing chain stretch"],
+    "repairs": ["Replace VANOS unit", "Check oil pressure", "Replace timing chain"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BA": {
+    "description": "Fuel Injector Cylinder 1 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BB": {
+    "description": "Fuel Injector Cylinder 2 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BC": {
+    "description": "Fuel Injector Cylinder 3 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BD": {
+    "description": "Fuel Injector Cylinder 4 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BE": {
+    "description": "Fuel Injector Cylinder 5 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  },
+  "30BF": {
+    "description": "Fuel Injector Cylinder 6 - Activation",
+    "category": "fuel_delivery",
+    "severity": "high",
+    "symptoms": ["Misfire", "Rough running", "Check engine light"],
+    "causes": ["Faulty injector", "Wiring fault", "ECU driver failure"],
+    "repairs": ["Replace fuel injector", "Check wiring", "Test ECU"],
+    "bmw_specific": true,
+    "affected_models": ["E60", "E90"]
+  }
+}
