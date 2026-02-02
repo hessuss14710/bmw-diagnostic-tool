@@ -46,7 +46,10 @@ export interface FullAnalysis {
 
 // Lookup DTC in database
 function lookupDtc(code: string): DtcAnalysis | null {
-  const allCodes = { ...genericCodes, ...bmwCodes } as Record<string, {
+  // Filter out _metadata from bmwCodes
+  const { _metadata, ...bmwCodesFiltered } = bmwCodes as Record<string, unknown>
+
+  const allCodes = { ...genericCodes, ...bmwCodesFiltered } as Record<string, {
     description: string
     category: string
     severity: string

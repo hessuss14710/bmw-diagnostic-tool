@@ -4,7 +4,10 @@ import { Server } from "socket.io"
 import cors from "cors"
 import dotenv from "dotenv"
 import dtcRoutes from "./routes/dtcRoutes.js"
+import historyRoutes from "./routes/historyRoutes.js"
 import { analyzeDtcs, type DtcInput } from "./services/openaiService.js"
+import { checkAllParameters, type Alert } from "./services/alertService.js"
+import { saveSession, createSessionRecord, addLiveDataSnapshot, type DiagnosticSessionRecord } from "./services/historyService.js"
 import OpenAI from "openai"
 
 // Load environment variables
@@ -60,6 +63,7 @@ app.use((req, _res, next) => {
 
 // Routes
 app.use("/api", dtcRoutes)
+app.use("/api/history", historyRoutes)
 
 // Active sessions endpoint
 app.get("/api/sessions", (_req, res) => {
@@ -79,17 +83,24 @@ app.get("/api/sessions", (_req, res) => {
 app.get("/", (_req, res) => {
   res.json({
     name: "BMW Diagnostic AI Server",
-    version: "2.0.0",
-    features: ["REST API", "WebSocket", "AI Chat"],
+    version: "2.1.0",
+    features: ["REST API", "WebSocket", "AI Chat", "History", "Alerts"],
     endpoints: {
       health: "GET /api/health",
       analyze: "POST /api/dtc/analyze",
       lookup: "GET /api/dtc/lookup/:code",
       sessions: "GET /api/sessions",
+      history: "GET /api/history",
+      historyById: "GET /api/history/:id",
+      saveHistory: "POST /api/history",
+      compareHistory: "POST /api/history/compare",
+      alertThresholds: "GET /api/history/alerts/thresholds",
+      checkAlerts: "POST /api/history/alerts/check",
     },
     websocket: {
       app: "Tauri app connection",
       dashboard: "Web dashboard connection",
+      events: ["alerts:new", "livedata:updated", "dtcs:updated"],
     },
   })
 })
@@ -171,6 +182,16 @@ appNamespace.on("connection", (socket) => {
       }
     }
     session.lastActivity = timestamp
+
+    // Check for alerts
+    const alerts = checkAllParameters(data)
+    if (alerts.length > 0) {
+      // Broadcast alerts to dashboards
+      dashboardNamespace.to(sessionId).emit("alerts:new", {
+        alerts,
+        timestamp,
+      })
+    }
 
     // Broadcast to dashboards
     dashboardNamespace.to(sessionId).emit("livedata:updated", {

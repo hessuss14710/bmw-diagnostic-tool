@@ -2,13 +2,15 @@ import { PortSelector } from "@/components/connection/PortSelector"
 import { DiagnosticsPanel } from "@/components/dtc/DiagnosticsPanel"
 import { LiveDataPanel } from "@/components/live-data/LiveDataPanel"
 import { DPFPanel } from "@/components/dpf/DPFPanel"
+import { DSCPanel, KOMBIPanel, FRMPanel, EGSPanel } from "@/components/ecu"
+import { HistoryPanel } from "@/components/history/HistoryPanel"
 import { useSerial } from "@/hooks/useSerial"
 import { useBMW } from "@/hooks/useBMW"
 import { useWebSocket } from "@/hooks/useWebSocket"
-import { Car, Activity, AlertTriangle, Wifi, WifiOff, Filter } from "lucide-react"
+import { Car, Activity, AlertTriangle, Wifi, WifiOff, Filter, CircleDot, Gauge, Lightbulb, Settings, History } from "lucide-react"
 import { useState, useEffect } from "react"
 
-type Tab = "diagnostics" | "live-data" | "dpf"
+type Tab = "diagnostics" | "live-data" | "dpf" | "ecu-specific" | "history"
 
 function App() {
   const { isConnected } = useSerial()
@@ -84,7 +86,7 @@ function App() {
 
           {/* Tab Navigation */}
           <section>
-            <div className="flex gap-2 mb-3">
+            <div className="flex flex-wrap gap-2 mb-3">
               <button
                 onClick={() => setActiveTab("diagnostics")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -118,6 +120,35 @@ function App() {
                 <Filter className="h-4 w-4" />
                 DPF
               </button>
+              {/* ECU-Specific Tab - shown when non-DDE ECU is selected */}
+              {bmw.selectedEcu && ["DSC", "KOMBI", "FRM", "EGS"].includes(bmw.selectedEcu.id) && (
+                <button
+                  onClick={() => setActiveTab("ecu-specific")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === "ecu-specific"
+                      ? "bg-purple-600 text-white"
+                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                  }`}
+                >
+                  {bmw.selectedEcu.id === "DSC" && <CircleDot className="h-4 w-4" />}
+                  {bmw.selectedEcu.id === "KOMBI" && <Gauge className="h-4 w-4" />}
+                  {bmw.selectedEcu.id === "FRM" && <Lightbulb className="h-4 w-4" />}
+                  {bmw.selectedEcu.id === "EGS" && <Settings className="h-4 w-4" />}
+                  {bmw.selectedEcu.id}
+                </button>
+              )}
+              {/* History Tab */}
+              <button
+                onClick={() => setActiveTab("history")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "history"
+                    ? "bg-cyan-600 text-white"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                }`}
+              >
+                <History className="h-4 w-4" />
+                History
+              </button>
             </div>
 
             {activeTab === "diagnostics" && (
@@ -139,6 +170,43 @@ function App() {
                 isInitialized={bmw.isInitialized}
                 selectedEcu={bmw.selectedEcu}
               />
+            )}
+
+            {activeTab === "ecu-specific" && bmw.selectedEcu && (
+              <>
+                {bmw.selectedEcu.id === "DSC" && (
+                  <DSCPanel
+                    isConnected={isConnected}
+                    isInitialized={bmw.isInitialized}
+                    selectedEcu={bmw.selectedEcu}
+                  />
+                )}
+                {bmw.selectedEcu.id === "KOMBI" && (
+                  <KOMBIPanel
+                    isConnected={isConnected}
+                    isInitialized={bmw.isInitialized}
+                    selectedEcu={bmw.selectedEcu}
+                  />
+                )}
+                {bmw.selectedEcu.id === "FRM" && (
+                  <FRMPanel
+                    isConnected={isConnected}
+                    isInitialized={bmw.isInitialized}
+                    selectedEcu={bmw.selectedEcu}
+                  />
+                )}
+                {bmw.selectedEcu.id === "EGS" && (
+                  <EGSPanel
+                    isConnected={isConnected}
+                    isInitialized={bmw.isInitialized}
+                    selectedEcu={bmw.selectedEcu}
+                  />
+                )}
+              </>
+            )}
+
+            {activeTab === "history" && (
+              <HistoryPanel />
             )}
           </section>
         </div>

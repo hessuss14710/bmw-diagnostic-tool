@@ -483,4 +483,254 @@ pub mod can_ids {
 
     // Common response offset
     pub const RESPONSE_OFFSET: u32 = 8;  // ECU responds on TX_ID + 8
+
+    /// Get CAN IDs for a given ECU
+    /// Returns (tx_id, rx_id) tuple
+    pub fn for_ecu(ecu_name: &str) -> Option<(u32, u32)> {
+        match ecu_name.to_uppercase().as_str() {
+            "DDE" | "DME" => Some((0x612, 0x612 + 8)),
+            "EGS" => Some((0x618, 0x618 + 8)),
+            "DSC" => Some((0x6D8, 0x6D8 + 8)),
+            "KOMBI" => Some((0x660, 0x660 + 8)),
+            "CAS" => Some((0x640, 0x640 + 8)),
+            "FRM" => Some((0x668, 0x668 + 8)),
+            "ACSM" => Some((0x6C0, 0x6C0 + 8)),
+            "CCC" | "CIC" => Some((0x6F1, 0x63F)),  // Head unit uses functional addressing
+            _ => None,
+        }
+    }
+}
+
+// =============================================================================
+// High-Level D-CAN UDS Functions
+// =============================================================================
+
+use crate::bmw::Dtc;
+
+impl DCanHandler {
+    /// Send UDS request and receive response via D-CAN
+    pub fn send_uds_request(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+        service_data: &[u8],
+    ) -> Result<Vec<u8>, String> {
+        Self::send_message(port, tx_id, rx_id, service_data)
+    }
+
+    /// Read DTCs from ECU via D-CAN
+    pub fn read_dtcs(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+    ) -> Result<Vec<Dtc>, String> {
+        // UDS ReadDTCInformation (0x19) with sub-function 0x02 (reportDTCByStatusMask)
+        let request = vec![0x19, 0x02, 0xFF];
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        // Parse response
+        if response.first() != Some(&0x59) {
+            if response.first() == Some(&0x7F) {
+                let nrc = response.get(2).copied().unwrap_or(0);
+                return Err(format!("Negative response: 0x{:02X}", nrc));
+            }
+            return Err(format!("Unexpected response: {:02X?}", response));
+        }
+
+        // Response format: [0x59] [sub-function] [status_mask] [DTC1_HI] [DTC1_LO] [STATUS1] ...
+        let mut dtcs = Vec::new();
+        if response.len() >= 3 {
+            let data = &response[3..];
+            for chunk in data.chunks(3) {
+                if chunk.len() >= 3 {
+                    if let Some(dtc) = Dtc::from_bytes(chunk) {
+                        dtcs.push(dtc);
+                    }
+                }
+            }
+        }
+
+        Ok(dtcs)
+    }
+
+    /// Clear DTCs from ECU via D-CAN
+    pub fn clear_dtcs(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+    ) -> Result<(), String> {
+        // UDS ClearDiagnosticInformation (0x14) with group = all (0xFFFFFF)
+        let request = vec![0x14, 0xFF, 0xFF, 0xFF];
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        if response.first() == Some(&0x54) {
+            Ok(())
+        } else if response.first() == Some(&0x7F) {
+            let nrc = response.get(2).copied().unwrap_or(0);
+            Err(format!("Clear DTCs failed: NRC 0x{:02X}", nrc))
+        } else {
+            Err(format!("Unexpected response: {:02X?}", response))
+        }
+    }
+
+    /// Read data by identifier via D-CAN
+    pub fn read_data_by_id(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+        did: u16,
+    ) -> Result<Vec<u8>, String> {
+        let request = vec![0x22, (did >> 8) as u8, (did & 0xFF) as u8];
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        if response.first() == Some(&0x62) && response.len() >= 3 {
+            // Verify DID matches
+            let resp_did = ((response[1] as u16) << 8) | (response[2] as u16);
+            if resp_did == did {
+                return Ok(response[3..].to_vec());
+            }
+            return Err(format!("DID mismatch: expected 0x{:04X}, got 0x{:04X}", did, resp_did));
+        }
+
+        if response.first() == Some(&0x7F) {
+            let nrc = response.get(2).copied().unwrap_or(0);
+            return Err(format!("Read DID 0x{:04X} failed: NRC 0x{:02X}", did, nrc));
+        }
+
+        Err(format!("Unexpected response: {:02X?}", response))
+    }
+
+    /// Start diagnostic session via D-CAN
+    pub fn start_session(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+        session_type: u8,
+    ) -> Result<(), String> {
+        let request = vec![0x10, session_type];
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        if response.first() == Some(&0x50) {
+            Ok(())
+        } else if response.first() == Some(&0x7F) {
+            let nrc = response.get(2).copied().unwrap_or(0);
+            Err(format!("Session 0x{:02X} rejected: NRC 0x{:02X}", session_type, nrc))
+        } else {
+            Err(format!("Unexpected response: {:02X?}", response))
+        }
+    }
+
+    /// Send TesterPresent via D-CAN
+    pub fn tester_present(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+    ) -> Result<(), String> {
+        let request = vec![0x3E, 0x00]; // TesterPresent with response expected
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        if response.first() == Some(&0x7E) {
+            Ok(())
+        } else if response.first() == Some(&0x7F) {
+            let nrc = response.get(2).copied().unwrap_or(0);
+            Err(format!("TesterPresent rejected: NRC 0x{:02X}", nrc))
+        } else {
+            Err(format!("Unexpected response: {:02X?}", response))
+        }
+    }
+
+    /// Execute routine control via D-CAN
+    pub fn routine_control(
+        port: &mut Box<dyn serialport::SerialPort>,
+        tx_id: u32,
+        rx_id: u32,
+        routine_id: u16,
+        sub_function: u8,
+        data: Option<&[u8]>,
+    ) -> Result<Vec<u8>, String> {
+        let mut request = vec![
+            0x31,
+            sub_function,
+            (routine_id >> 8) as u8,
+            (routine_id & 0xFF) as u8,
+        ];
+        if let Some(extra) = data {
+            request.extend_from_slice(extra);
+        }
+
+        let response = Self::send_message(port, tx_id, rx_id, &request)?;
+
+        if response.first() == Some(&0x71) {
+            // Return routine result data (skip service ID, sub-function, routine ID)
+            Ok(response.get(4..).unwrap_or(&[]).to_vec())
+        } else if response.first() == Some(&0x7F) {
+            let nrc = response.get(2).copied().unwrap_or(0);
+            Err(format!("Routine 0x{:04X} failed: NRC 0x{:02X}", routine_id, nrc))
+        } else {
+            Err(format!("Unexpected response: {:02X?}", response))
+        }
+    }
+}
+
+// =============================================================================
+// Protocol Auto-Detection
+// =============================================================================
+
+/// Detect which protocol (K-Line or D-CAN) an ECU supports
+pub fn detect_ecu_protocol(
+    port: &mut Box<dyn serialport::SerialPort>,
+    ecu_name: &str,
+) -> Result<String, String> {
+    use crate::kline::KLineHandler;
+
+    // First try D-CAN if ECU has known CAN IDs
+    if let Some((tx_id, rx_id)) = can_ids::for_ecu(ecu_name) {
+        // Switch to D-CAN mode
+        DCanHandler::switch_to_dcan_mode(port)?;
+
+        // Try TesterPresent
+        let tp_request = vec![0x3E, 0x00];
+        match DCanHandler::send_message(port, tx_id, rx_id, &tp_request) {
+            Ok(response) if response.first() == Some(&0x7E) => {
+                log::info!("ECU {} responds on D-CAN", ecu_name);
+                return Ok("D-CAN".to_string());
+            }
+            _ => {
+                log::debug!("ECU {} did not respond on D-CAN, trying K-Line", ecu_name);
+            }
+        }
+    }
+
+    // Try K-Line
+    DCanHandler::switch_to_kline_mode(port)?;
+
+    // Get K-Line address for ECU
+    let kline_addr = match ecu_name.to_uppercase().as_str() {
+        "DDE" | "DME" => 0x12,
+        "EGS" => 0x32,
+        "DSC" => 0x44,
+        "KOMBI" => 0x60,
+        "FRM" => 0x68,
+        "ACSM" => 0x6C,
+        "CAS" => 0x40,
+        _ => return Err(format!("Unknown ECU: {}", ecu_name)),
+    };
+
+    // Try fast init
+    let source = 0xF1;
+    match KLineHandler::init_fast(port, kline_addr, source) {
+        Ok(_) => {
+            log::info!("ECU {} responds on K-Line at 0x{:02X}", ecu_name, kline_addr);
+            Ok("K-Line".to_string())
+        }
+        Err(e) => {
+            log::warn!("ECU {} not responding: {}", ecu_name, e);
+            Err(format!("ECU {} not responding on K-Line or D-CAN", ecu_name))
+        }
+    }
 }
