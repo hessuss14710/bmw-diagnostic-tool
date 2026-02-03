@@ -14,7 +14,7 @@ export function EGSPanel({ isConnected, isInitialized, selectedEcu }: EGSPanelPr
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
-  // Auto-refresh status
+  // Auto-refresh status - egs.readStatus is stable from hook
   useEffect(() => {
     if (!autoRefresh || !isInitialized) return
 
@@ -23,6 +23,7 @@ export function EGSPanel({ isConnected, isInitialized, selectedEcu }: EGSPanelPr
     }, 500)
 
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, isInitialized])
 
   const canOperate = isConnected && isInitialized && selectedEcu?.id === "EGS"

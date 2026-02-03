@@ -1,3 +1,10 @@
+//! Serial port management for K+DCAN cable communication
+//!
+//! This module handles serial port connection and low-level communication.
+
+// Allow unused items as they are part of the public API but not all are used internally
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use serialport::{available_ports, SerialPortType};
 use std::sync::Mutex;
@@ -253,5 +260,62 @@ pub struct SerialState(pub Mutex<SerialManager>);
 impl SerialState {
     pub fn new() -> Self {
         Self(Mutex::new(SerialManager::new()))
+    }
+
+    /// Get a lock on the SerialManager
+    ///
+    /// This is a helper to reduce repetitive lock code throughout the codebase.
+    pub fn lock_manager(&self) -> Result<std::sync::MutexGuard<'_, SerialManager>, String> {
+        self.0.lock().map_err(|e| format!("Lock error: {}", e))
+    }
+
+    /// Execute a closure with exclusive access to the serial port
+    ///
+    /// This helper eliminates the repetitive pattern of:
+    /// 1. Lock the mutex
+    /// 2. Get the port
+    /// 3. Execute operation
+    /// 4. Handle errors
+    ///
+    /// # Example
+    /// ```ignore
+    /// state.with_port(|port| {
+    ///     KLineHandler::send_request(port, target, source, &data)
+    /// })
+    /// ```
+    pub fn with_port<F, T>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut Box<dyn serialport::SerialPort>) -> Result<T, String>,
+    {
+        let mut manager = self.lock_manager()?;
+        let port = manager
+            .get_port_mut()
+            .ok_or_else(|| "Not connected".to_string())?;
+        f(port)
+    }
+
+    /// Execute a closure with exclusive access to the SerialManager
+    ///
+    /// Use this when you need access to manager methods, not just the port.
+    pub fn with_manager<F, T>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut SerialManager) -> Result<T, String>,
+    {
+        let mut manager = self.lock_manager()?;
+        f(&mut manager)
+    }
+
+    /// Check if connected without holding the lock
+    pub fn is_connected(&self) -> bool {
+        self.0
+            .lock()
+            .map(|m| m.is_connected())
+            .unwrap_or(false)
+    }
+
+    /// Get current connection state
+    pub fn get_state(&self) -> Result<ConnectionState, String> {
+        let manager = self.lock_manager()?;
+        Ok(manager.get_state())
     }
 }

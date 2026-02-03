@@ -1,8 +1,13 @@
 //! BMW Diagnostic Types and Structures
 //!
 //! This module contains BMW-specific types, ECU definitions, and diagnostic services.
+//!
+//! Note: UDS and KWP service constants are centralized in `constants.rs`.
+//! This module re-exports them for backward compatibility.
 
 use serde::{Deserialize, Serialize};
+
+// Note: UDS and KWP constants are available in crate::constants module
 
 /// BMW ECU definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +109,7 @@ impl Dtc {
 }
 
 /// Live data PID
+#[allow(dead_code)]  // Public API - used by frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pid {
     pub id: u16,
@@ -116,6 +122,7 @@ pub struct Pid {
 }
 
 /// Live data value
+#[allow(dead_code)]  // Public API - used by frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveValue {
     pub pid: u16,
@@ -125,78 +132,10 @@ pub struct LiveValue {
     pub raw_bytes: Vec<u8>,
 }
 
-/// UDS (Unified Diagnostic Services) service IDs
-pub mod uds {
-    pub const DIAGNOSTIC_SESSION_CONTROL: u8 = 0x10;
-    pub const ECU_RESET: u8 = 0x11;
-    pub const CLEAR_DIAGNOSTIC_INFO: u8 = 0x14;
-    pub const READ_DTC_INFO: u8 = 0x19;
-    pub const READ_DATA_BY_ID: u8 = 0x22;
-    pub const READ_MEMORY_BY_ADDRESS: u8 = 0x23;
-    pub const SECURITY_ACCESS: u8 = 0x27;
-    pub const COMMUNICATION_CONTROL: u8 = 0x28;
-    pub const WRITE_DATA_BY_ID: u8 = 0x2E;
-    pub const IO_CONTROL: u8 = 0x2F;
-    pub const ROUTINE_CONTROL: u8 = 0x31;
-    pub const REQUEST_DOWNLOAD: u8 = 0x34;
-    pub const REQUEST_UPLOAD: u8 = 0x35;
-    pub const TRANSFER_DATA: u8 = 0x36;
-    pub const REQUEST_TRANSFER_EXIT: u8 = 0x37;
-    pub const WRITE_MEMORY_BY_ADDRESS: u8 = 0x3D;
-    pub const TESTER_PRESENT: u8 = 0x3E;
-    pub const CONTROL_DTC_SETTING: u8 = 0x85;
-
-    // Positive response = service ID + 0x40
-    pub const POSITIVE_RESPONSE_OFFSET: u8 = 0x40;
-    pub const NEGATIVE_RESPONSE: u8 = 0x7F;
-
-    // Diagnostic session types
-    pub const SESSION_DEFAULT: u8 = 0x01;
-    pub const SESSION_PROGRAMMING: u8 = 0x02;
-    pub const SESSION_EXTENDED: u8 = 0x03;
-
-    // Read DTC sub-functions
-    pub const REPORT_DTC_BY_STATUS_MASK: u8 = 0x02;
-    pub const REPORT_DTC_SNAPSHOT_BY_DTC: u8 = 0x04;
-    pub const REPORT_SUPPORTED_DTC: u8 = 0x0A;
-}
-
-/// KWP2000 service IDs (for K-Line)
-pub mod kwp {
-    pub const START_COMMUNICATION: u8 = 0x81;
-    pub const STOP_COMMUNICATION: u8 = 0x82;
-    pub const ACCESS_TIMING_PARAMETER: u8 = 0x83;
-    pub const TESTER_PRESENT: u8 = 0x3E;
-    pub const START_DIAGNOSTIC_SESSION: u8 = 0x10;
-    pub const ECU_RESET: u8 = 0x11;
-    pub const CLEAR_DIAGNOSTIC_INFO: u8 = 0x14;
-    pub const READ_STATUS_OF_DTC: u8 = 0x17;
-    pub const READ_DTC_BY_STATUS: u8 = 0x18;
-    pub const READ_ECU_ID: u8 = 0x1A;
-    pub const READ_DATA_BY_LOCAL_ID: u8 = 0x21;
-    pub const READ_DATA_BY_COMMON_ID: u8 = 0x22;
-    pub const READ_MEMORY_BY_ADDRESS: u8 = 0x23;
-    pub const SECURITY_ACCESS: u8 = 0x27;
-    pub const DISABLE_NORMAL_TRANSMISSION: u8 = 0x28;
-    pub const ENABLE_NORMAL_TRANSMISSION: u8 = 0x29;
-    pub const DYNAMICALLY_DEFINE_LOCAL_ID: u8 = 0x2C;
-    pub const WRITE_DATA_BY_LOCAL_ID: u8 = 0x3B;
-    pub const WRITE_MEMORY_BY_ADDRESS: u8 = 0x3D;
-    pub const INPUT_OUTPUT_CONTROL: u8 = 0x30;
-    pub const START_ROUTINE_BY_LOCAL_ID: u8 = 0x31;
-    pub const STOP_ROUTINE_BY_LOCAL_ID: u8 = 0x32;
-    pub const REQUEST_ROUTINE_RESULTS: u8 = 0x33;
-    pub const REQUEST_DOWNLOAD: u8 = 0x34;
-    pub const REQUEST_UPLOAD: u8 = 0x35;
-    pub const TRANSFER_DATA: u8 = 0x36;
-    pub const REQUEST_TRANSFER_EXIT: u8 = 0x37;
-
-    // Positive response = service ID + 0x40
-    pub const POSITIVE_RESPONSE_OFFSET: u8 = 0x40;
-    pub const NEGATIVE_RESPONSE: u8 = 0x7F;
-}
+// UDS and KWP constants are now in constants.rs and re-exported above
 
 /// Negative Response Codes (NRC)
+#[allow(dead_code)]  // Public API constants
 pub mod nrc {
     pub const GENERAL_REJECT: u8 = 0x10;
     pub const SERVICE_NOT_SUPPORTED: u8 = 0x11;
@@ -344,6 +283,7 @@ pub fn e60_ecus() -> Vec<EcuInfo> {
 }
 
 /// Common OBD-II PIDs
+#[allow(dead_code)]  // Public API for OBD-II compatibility
 pub fn common_pids() -> Vec<Pid> {
     vec![
         Pid {
@@ -423,6 +363,7 @@ pub fn common_pids() -> Vec<Pid> {
 
 /// DPF (Diesel Particulate Filter) routine IDs for BMW DDE
 /// These are used with RoutineControl service (0x31)
+#[allow(dead_code)]  // Public API constants
 pub mod dpf_routines {
     /// Reset DPF ash/soot counter (Rußbeladung zurücksetzen)
     /// This resets the calculated soot loading value
@@ -458,6 +399,7 @@ pub mod dpf_routines {
 }
 
 /// DPF-related Data Identifiers for ReadDataByIdentifier (0x22)
+#[allow(dead_code)]  // Public API constants
 pub mod dpf_dids {
     /// DPF soot loading percentage (0-100%)
     pub const SOOT_LOADING: u16 = 0xAB10;
@@ -494,6 +436,7 @@ pub mod dpf_dids {
 }
 
 /// Diagnostic session types
+#[allow(dead_code)]  // Public API constants
 pub mod session {
     pub const DEFAULT: u8 = 0x01;
     pub const PROGRAMMING: u8 = 0x02;
@@ -505,6 +448,7 @@ pub mod session {
 }
 
 /// Security access levels for BMW
+#[allow(dead_code)]  // Public API constants
 pub mod security {
     /// Standard diagnostic level
     pub const LEVEL_STANDARD: u8 = 0x01;
@@ -557,6 +501,7 @@ pub struct DpfStatus {
 
 /// Diesel-specific Data Identifiers (DIDs) for ReadDataByIdentifier (0x22)
 /// These are BMW manufacturer-specific DIDs for the DDE (Digital Diesel Electronics)
+#[allow(dead_code)]  // Public API constants
 pub mod diesel_dids {
     // === COMMON RAIL / FUEL SYSTEM ===
 
@@ -736,6 +681,7 @@ pub struct DidValue {
 }
 
 /// Diesel live data status (comprehensive snapshot)
+#[allow(dead_code)]  // Public API - for future live data streaming
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DieselLiveData {
     // Fuel system
@@ -775,6 +721,7 @@ pub struct DieselLiveData {
 }
 
 /// Categories for diesel PIDs
+#[allow(dead_code)]  // Public API - for PID categorization
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DieselPidCategory {
     FuelSystem,

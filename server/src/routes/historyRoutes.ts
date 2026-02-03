@@ -3,6 +3,7 @@
  */
 
 import { Router, Request, Response } from "express"
+import { z } from "zod"
 import {
   saveSession,
   getSession,
@@ -12,15 +13,29 @@ import {
   getSessionSummary,
   type DiagnosticSessionRecord
 } from "../services/historyService.js"
-import { checkAllParameters, getAllThresholds, type Alert } from "../services/alertService.js"
+import { checkAllParameters, getAllThresholds } from "../services/alertService.js"
+import {
+  validateBody,
+  validateParams,
+  validateQuery,
+  sessionDataSchema,
+  compareSessionsSchema,
+  sessionIdParamSchema,
+  liveDataSchema,
+} from "../middleware/validation.js"
 
 const router = Router()
+
+// Query schema for VIN filter
+const vinQuerySchema = z.object({
+  vin: z.string().max(17).optional(),
+})
 
 /**
  * GET /api/history
  * Get all diagnostic sessions, optionally filtered by VIN
  */
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", validateQuery(vinQuerySchema), async (req: Request, res: Response) => {
   try {
     const vin = req.query.vin as string | undefined
     const sessions = await getSessions(vin)
@@ -31,9 +46,9 @@ router.get("/", async (req: Request, res: Response) => {
       sessions: summaries
     })
   } catch (error) {
+    console.error("Error fetching sessions:", error)
     res.status(500).json({
-      error: "Failed to get sessions",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to get sessions"
     })
   }
 })
@@ -42,7 +57,7 @@ router.get("/", async (req: Request, res: Response) => {
  * GET /api/history/:id
  * Get a specific session by ID
  */
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", validateParams(sessionIdParamSchema), async (req: Request, res: Response) => {
   try {
     const session = await getSession(req.params.id as string)
 
@@ -54,9 +69,9 @@ router.get("/:id", async (req: Request, res: Response) => {
 
     res.json(session)
   } catch (error) {
+    console.error("Error fetching session:", error)
     res.status(500).json({
-      error: "Failed to get session",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to get session"
     })
   }
 })
@@ -65,17 +80,9 @@ router.get("/:id", async (req: Request, res: Response) => {
  * POST /api/history
  * Save a new diagnostic session
  */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", validateBody(sessionDataSchema), async (req: Request, res: Response) => {
   try {
     const sessionData = req.body as DiagnosticSessionRecord
-
-    if (!sessionData.id || !sessionData.createdAt) {
-      return res.status(400).json({
-        error: "Invalid session data",
-        message: "Session must have id and createdAt"
-      })
-    }
-
     const sessionId = await saveSession(sessionData)
 
     res.status(201).json({
@@ -83,9 +90,9 @@ router.post("/", async (req: Request, res: Response) => {
       sessionId
     })
   } catch (error) {
+    console.error("Error saving session:", error)
     res.status(500).json({
-      error: "Failed to save session",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to save session"
     })
   }
 })
@@ -94,43 +101,48 @@ router.post("/", async (req: Request, res: Response) => {
  * PUT /api/history/:id
  * Update an existing session
  */
-router.put("/:id", async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string
-    const existingSession = await getSession(id)
+router.put(
+  "/:id",
+  validateParams(sessionIdParamSchema),
+  validateBody(sessionDataSchema.partial()),
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string
+      const existingSession = await getSession(id)
 
-    if (!existingSession) {
-      return res.status(404).json({
-        error: "Session not found"
+      if (!existingSession) {
+        return res.status(404).json({
+          error: "Session not found"
+        })
+      }
+
+      const updatedSession: DiagnosticSessionRecord = {
+        ...existingSession,
+        ...req.body,
+        id, // Ensure ID doesn't change
+        createdAt: existingSession.createdAt // Preserve original creation date
+      }
+
+      await saveSession(updatedSession)
+
+      res.json({
+        success: true,
+        sessionId: id
+      })
+    } catch (error) {
+      console.error("Error updating session:", error)
+      res.status(500).json({
+        error: "Failed to update session"
       })
     }
-
-    const updatedSession: DiagnosticSessionRecord = {
-      ...existingSession,
-      ...req.body,
-      id, // Ensure ID doesn't change
-      createdAt: existingSession.createdAt // Preserve original creation date
-    }
-
-    await saveSession(updatedSession)
-
-    res.json({
-      success: true,
-      sessionId: id
-    })
-  } catch (error) {
-    res.status(500).json({
-      error: "Failed to update session",
-      message: error instanceof Error ? error.message : "Unknown error"
-    })
   }
-})
+)
 
 /**
  * DELETE /api/history/:id
  * Delete a session
  */
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", validateParams(sessionIdParamSchema), async (req: Request, res: Response) => {
   try {
     const deleted = await deleteSession(req.params.id as string)
 
@@ -144,9 +156,9 @@ router.delete("/:id", async (req: Request, res: Response) => {
       success: true
     })
   } catch (error) {
+    console.error("Error deleting session:", error)
     res.status(500).json({
-      error: "Failed to delete session",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to delete session"
     })
   }
 })
@@ -155,15 +167,9 @@ router.delete("/:id", async (req: Request, res: Response) => {
  * POST /api/history/compare
  * Compare two sessions
  */
-router.post("/compare", async (req: Request, res: Response) => {
+router.post("/compare", validateBody(compareSessionsSchema), async (req: Request, res: Response) => {
   try {
     const { sessionId1, sessionId2 } = req.body
-
-    if (!sessionId1 || !sessionId2) {
-      return res.status(400).json({
-        error: "Both sessionId1 and sessionId2 are required"
-      })
-    }
 
     const session1 = await getSession(sessionId1)
     const session2 = await getSession(sessionId2)
@@ -196,9 +202,9 @@ router.post("/compare", async (req: Request, res: Response) => {
       comparison
     })
   } catch (error) {
+    console.error("Error comparing sessions:", error)
     res.status(500).json({
-      error: "Failed to compare sessions",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to compare sessions"
     })
   }
 })
@@ -207,42 +213,47 @@ router.post("/compare", async (req: Request, res: Response) => {
  * POST /api/history/:id/alerts
  * Add alerts to a session based on live data
  */
-router.post("/:id/alerts", async (req: Request, res: Response) => {
-  try {
-    const session = await getSession(req.params.id as string)
+router.post(
+  "/:id/alerts",
+  validateParams(sessionIdParamSchema),
+  validateBody(z.object({ liveData: liveDataSchema })),
+  async (req: Request, res: Response) => {
+    try {
+      const session = await getSession(req.params.id as string)
 
-    if (!session) {
-      return res.status(404).json({
-        error: "Session not found"
+      if (!session) {
+        return res.status(404).json({
+          error: "Session not found"
+        })
+      }
+
+      const liveData = req.body.liveData as Record<string, { value: number; unit: string }>
+      const alerts = checkAllParameters(liveData)
+
+      // Add alerts to session
+      session.alerts.push(...alerts.map(a => ({
+        timestamp: a.timestamp,
+        type: a.type,
+        parameter: a.parameter,
+        value: a.value,
+        threshold: a.threshold,
+        message: a.message
+      })))
+
+      await saveSession(session)
+
+      res.json({
+        alertsGenerated: alerts.length,
+        alerts
+      })
+    } catch (error) {
+      console.error("Error checking alerts:", error)
+      res.status(500).json({
+        error: "Failed to check alerts"
       })
     }
-
-    const liveData = req.body.liveData as Record<string, { value: number; unit: string }>
-    const alerts = checkAllParameters(liveData)
-
-    // Add alerts to session
-    session.alerts.push(...alerts.map(a => ({
-      timestamp: a.timestamp,
-      type: a.type,
-      parameter: a.parameter,
-      value: a.value,
-      threshold: a.threshold,
-      message: a.message
-    })))
-
-    await saveSession(session)
-
-    res.json({
-      alertsGenerated: alerts.length,
-      alerts
-    })
-  } catch (error) {
-    res.status(500).json({
-      error: "Failed to check alerts",
-      message: error instanceof Error ? error.message : "Unknown error"
-    })
   }
-})
+)
 
 /**
  * GET /api/alerts/thresholds
@@ -258,7 +269,7 @@ router.get("/alerts/thresholds", (_req: Request, res: Response) => {
  * POST /api/alerts/check
  * Check live data against thresholds without saving
  */
-router.post("/alerts/check", (req: Request, res: Response) => {
+router.post("/alerts/check", validateBody(liveDataSchema), (req: Request, res: Response) => {
   try {
     const liveData = req.body as Record<string, { value: number; unit: string }>
     const alerts = checkAllParameters(liveData)
@@ -270,9 +281,9 @@ router.post("/alerts/check", (req: Request, res: Response) => {
       alerts
     })
   } catch (error) {
+    console.error("Error checking alerts:", error)
     res.status(500).json({
-      error: "Failed to check alerts",
-      message: error instanceof Error ? error.message : "Unknown error"
+      error: "Failed to check alerts"
     })
   }
 })

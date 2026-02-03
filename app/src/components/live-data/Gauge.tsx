@@ -1,5 +1,6 @@
 import Chart from "react-apexcharts"
 import type { ApexOptions } from "apexcharts"
+import { cn } from "@/lib/utils"
 
 interface GaugeProps {
   value: number
@@ -8,9 +9,11 @@ interface GaugeProps {
   unit: string
   label: string
   format?: "temperature" | "rpm" | "percent" | "speed" | "voltage" | "flow" | "pressure"
+  size?: "sm" | "md" | "lg"
+  className?: string
 }
 
-export function Gauge({ value, min, max, unit, label, format }: GaugeProps) {
+export function Gauge({ value, min, max, unit, label, format, size = "md", className }: GaugeProps) {
   // Calculate percentage for gauge
   const range = max - min
   const normalizedValue = Math.max(min, Math.min(max, value))
@@ -22,10 +25,12 @@ export function Gauge({ value, min, max, unit, label, format }: GaugeProps) {
       case "temperature":
         if (value < 60) return "#3b82f6" // Cold - blue
         if (value < 100) return "#22c55e" // Normal - green
+        if (value < 110) return "#f59e0b" // Warm - amber
         return "#ef4444" // Hot - red
       case "rpm":
         if (value < 1000) return "#3b82f6"
         if (value < 5000) return "#22c55e"
+        if (value < 6500) return "#f59e0b"
         return "#ef4444"
       case "percent":
         if (value < 30) return "#ef4444"
@@ -35,10 +40,22 @@ export function Gauge({ value, min, max, unit, label, format }: GaugeProps) {
         if (value < 11.5) return "#ef4444"
         if (value < 14.5) return "#22c55e"
         return "#f59e0b"
+      case "pressure":
+        if (value < 0.5) return "#3b82f6"
+        if (value < 2.5) return "#22c55e"
+        return "#ef4444"
       default:
-        return "#3b82f6"
+        return "#0066B1" // BMW Blue
     }
   }
+
+  const sizeConfig = {
+    sm: { height: 120, width: 120, valueSize: "18px", labelSize: "10px" },
+    md: { height: 160, width: 160, valueSize: "22px", labelSize: "11px" },
+    lg: { height: 200, width: 200, valueSize: "28px", labelSize: "12px" },
+  }
+
+  const config = sizeConfig[size]
 
   const options: ApexOptions = {
     chart: {
@@ -47,39 +64,66 @@ export function Gauge({ value, min, max, unit, label, format }: GaugeProps) {
         enabled: true,
       },
       background: "transparent",
+      animations: {
+        enabled: true,
+        speed: 500,
+        dynamicAnimation: {
+          enabled: true,
+          speed: 200,
+        },
+      },
     },
     plotOptions: {
       radialBar: {
         startAngle: -135,
         endAngle: 135,
         hollow: {
-          size: "60%",
+          size: "58%",
+          background: "transparent",
         },
         track: {
-          background: "#27272a",
+          background: "#1f1f23",
           strokeWidth: "100%",
+          margin: 0,
+          dropShadow: {
+            enabled: true,
+            top: 2,
+            left: 0,
+            blur: 4,
+            opacity: 0.3,
+          },
         },
         dataLabels: {
           name: {
             show: true,
-            fontSize: "12px",
-            fontWeight: 400,
-            color: "#a1a1aa",
-            offsetY: 25,
+            fontSize: config.labelSize,
+            fontWeight: 500,
+            color: "#71717a",
+            offsetY: 22,
           },
           value: {
             show: true,
-            fontSize: "24px",
-            fontWeight: 600,
+            fontSize: config.valueSize,
+            fontWeight: 700,
             color: "#ffffff",
-            offsetY: -10,
+            offsetY: -8,
             formatter: () => `${value.toFixed(format === "voltage" ? 1 : 0)}`,
           },
         },
       },
     },
     fill: {
-      colors: [getColor()],
+      type: "gradient",
+      gradient: {
+        shade: "dark",
+        type: "horizontal",
+        shadeIntensity: 0.5,
+        gradientToColors: [getColor()],
+        inverseColors: false,
+        opacityFrom: 1,
+        opacityTo: 1,
+        stops: [0, 100],
+      },
     },
     stroke: {
       lineCap: "round",
@@ -88,15 +132,20 @@ export function Gauge({ value, min, max, unit, label, format }: GaugeProps) {
   }
 
   return (
-    <div className="flex flex-col items-center">
+    <div className={cn(
+      "flex flex-col items-center p-2 rounded-xl bg-zinc-900/30 border border-zinc-800/50 transition-all duration-300 hover:border-zinc-700/50 hover:bg-zinc-900/50",
+      className
+    )}>
       <Chart
         options={options}
         series={[percentage]}
         type="radialBar"
-        height={180}
-        width={180}
+        height={config.height}
+        width={config.width}
       />
-      <span className="text-xs text-zinc-400 -mt-2">{label}</span>
+      <span className="text-xs text-zinc-400 font-medium -mt-1 text-center max-w-[100px] truncate">
+        {label}
+      </span>
     </div>
   )
 }

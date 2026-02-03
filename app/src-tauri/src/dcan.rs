@@ -9,6 +9,9 @@
 //! - K-Line mode: RTS=0, DTR=0 (default after power-on)
 //! - D-CAN mode: RTS=1, DTR=0
 
+// Allow unused items as they are part of the public API but not all are used internally
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -418,9 +421,9 @@ impl DCanHandler {
                 let mut result = first.data.clone();
 
                 // Send flow control (CTS = Clear To Send)
-                let fc = IsoTpFrame::flow_control(0, 0, 0);
                 // Note: For receiving, we don't actually send FC in this simple implementation
                 // The K+DCAN cable handles this at firmware level
+                let _fc = IsoTpFrame::flow_control(0, 0, 0);
 
                 // Receive consecutive frames
                 let mut expected_seq = 1u8;

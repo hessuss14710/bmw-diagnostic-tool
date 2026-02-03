@@ -3,6 +3,7 @@
 //! These commands expose BMW-specific diagnostic functions to the frontend.
 
 use crate::bmw::{self, Dtc, EcuInfo};
+use crate::constants::addresses;
 use crate::dcan::DCanHandler;
 use crate::kline::KLineHandler;
 use crate::serial::SerialState;
@@ -35,35 +36,19 @@ pub fn bmw_get_ecus() -> Vec<EcuInfo> {
 /// Switch to K-Line mode
 #[tauri::command]
 pub fn bmw_switch_kline(state: State<SerialState>) -> Result<String, String> {
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    DCanHandler::switch_to_kline_mode(port)?;
-
-    Ok("Switched to K-Line mode (10400 baud)".to_string())
+    state.with_port(|port| {
+        DCanHandler::switch_to_kline_mode(port)?;
+        Ok("Switched to K-Line mode (10400 baud)".to_string())
+    })
 }
 
 /// Switch to D-CAN mode
 #[tauri::command]
 pub fn bmw_switch_dcan(state: State<SerialState>) -> Result<String, String> {
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    DCanHandler::switch_to_dcan_mode(port)?;
-
-    Ok("Switched to D-CAN mode (500 kbaud)".to_string())
+    state.with_port(|port| {
+        DCanHandler::switch_to_dcan_mode(port)?;
+        Ok("Switched to D-CAN mode (500 kbaud)".to_string())
+    })
 }
 
 /// Initialize K-Line communication with fast init
@@ -72,63 +57,56 @@ pub fn bmw_kline_init(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<BmwInitResult, String> {
-    let target = target_address.unwrap_or(0x12); // Default DME
-    let source = 0xF1; // Tester
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Starting K-Line init to ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Ensure we're in K-Line mode
+        DCanHandler::switch_to_kline_mode(port)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        // Try fast init first
+        match KLineHandler::init_fast(port, target, source) {
+            Ok(response) => {
+                log::info!("Fast init successful: {:02X?}", response);
+                Ok(BmwInitResult {
+                    success: true,
+                    protocol: "KWP2000 Fast Init".to_string(),
+                    message: format!(
+                        "Connected to ECU 0x{:02X}, response: {:02X?}",
+                        target, response
+                    ),
+                })
+            }
+            Err(e) => {
+                log::warn!("Fast init failed: {}, trying 5 baud init", e);
 
-    // Ensure we're in K-Line mode
-    DCanHandler::switch_to_kline_mode(port)?;
-
-    // Try fast init first
-    match KLineHandler::init_fast(port, target, source) {
-        Ok(response) => {
-            log::info!("Fast init successful: {:02X?}", response);
-            Ok(BmwInitResult {
-                success: true,
-                protocol: "KWP2000 Fast Init".to_string(),
-                message: format!(
-                    "Connected to ECU 0x{:02X}, response: {:02X?}",
-                    target, response
-                ),
-            })
-        }
-        Err(e) => {
-            log::warn!("Fast init failed: {}, trying 5 baud init", e);
-
-            // Try 5 baud init as fallback
-            match KLineHandler::init_5baud(port, target) {
-                Ok((kb1, kb2)) => {
-                    log::info!("5 baud init successful: KB1=0x{:02X}, KB2=0x{:02X}", kb1, kb2);
-                    Ok(BmwInitResult {
-                        success: true,
-                        protocol: "ISO 9141 5-baud Init".to_string(),
-                        message: format!(
-                            "Connected to ECU 0x{:02X}, KB1=0x{:02X}, KB2=0x{:02X}",
-                            target, kb1, kb2
-                        ),
-                    })
-                }
-                Err(e2) => {
-                    log::error!("Both init methods failed");
-                    Ok(BmwInitResult {
-                        success: false,
-                        protocol: "None".to_string(),
-                        message: format!("Fast init: {}. 5-baud init: {}", e, e2),
-                    })
+                // Try 5 baud init as fallback
+                match KLineHandler::init_5baud(port, target) {
+                    Ok((kb1, kb2)) => {
+                        log::info!("5 baud init successful: KB1=0x{:02X}, KB2=0x{:02X}", kb1, kb2);
+                        Ok(BmwInitResult {
+                            success: true,
+                            protocol: "ISO 9141 5-baud Init".to_string(),
+                            message: format!(
+                                "Connected to ECU 0x{:02X}, KB1=0x{:02X}, KB2=0x{:02X}",
+                                target, kb1, kb2
+                            ),
+                        })
+                    }
+                    Err(e2) => {
+                        log::error!("Both init methods failed");
+                        Ok(BmwInitResult {
+                            success: false,
+                            protocol: "None".to_string(),
+                            message: format!("Fast init: {}. 5-baud init: {}", e, e2),
+                        })
+                    }
                 }
             }
         }
-    }
+    })
 }
 
 /// Send a diagnostic request via K-Line and get response
@@ -138,18 +116,9 @@ pub fn bmw_kline_request(
     target_address: u8,
     service_data: Vec<u8>,
 ) -> Result<Vec<u8>, String> {
-    let source = 0xF1; // Tester
-
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    KLineHandler::send_request(port, target_address, source, &service_data)
+    state.with_port(|port| {
+        KLineHandler::send_request(port, target_address, addresses::TESTER, &service_data)
+    })
 }
 
 /// Read DTCs from ECU via K-Line
@@ -158,81 +127,70 @@ pub fn bmw_read_dtcs_kline(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DtcReadResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Try UDS style first (0x19 with sub-function 0x02 = reportDTCByStatusMask)
+        let request = vec![0x19, 0x02, 0xFF]; // Read all DTCs with any status
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Read DTCs using KWP2000 service 0x18 (ReadDTCByStatus)
-    // or UDS service 0x19 (ReadDTCInformation)
-
-    // Try UDS style first (0x19 with sub-function 0x02 = reportDTCByStatusMask)
-    let request = vec![0x19, 0x02, 0xFF]; // Read all DTCs with any status
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x59) {
-                // Positive response
-                // Response format: [0x59] [sub-function] [status_mask] [DTC1_HI] [DTC1_LO] [STATUS1] ...
-                let dtcs = parse_uds_dtc_response(&response);
-                Ok(DtcReadResult {
-                    success: true,
-                    count: dtcs.len(),
-                    dtcs,
-                    message: "DTCs read successfully (UDS)".to_string(),
-                })
-            } else if response.first() == Some(&0x7F) {
-                // Negative response, try KWP2000 style
-                let kwp_request = vec![0x18, 0x00, 0xFF, 0x00]; // ReadDTCByStatus
-                match KLineHandler::send_request(port, target, source, &kwp_request) {
-                    Ok(kwp_response) => {
-                        if kwp_response.first() == Some(&0x58) {
-                            let dtcs = parse_kwp_dtc_response(&kwp_response);
-                            Ok(DtcReadResult {
-                                success: true,
-                                count: dtcs.len(),
-                                dtcs,
-                                message: "DTCs read successfully (KWP2000)".to_string(),
-                            })
-                        } else {
-                            Ok(DtcReadResult {
-                                success: false,
-                                count: 0,
-                                dtcs: vec![],
-                                message: format!("Unexpected KWP response: {:02X?}", kwp_response),
-                            })
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x59) {
+                    // Positive response
+                    let dtcs = parse_uds_dtc_response(&response);
+                    Ok(DtcReadResult {
+                        success: true,
+                        count: dtcs.len(),
+                        dtcs,
+                        message: "DTCs read successfully (UDS)".to_string(),
+                    })
+                } else if response.first() == Some(&0x7F) {
+                    // Negative response, try KWP2000 style
+                    let kwp_request = vec![0x18, 0x00, 0xFF, 0x00]; // ReadDTCByStatus
+                    match KLineHandler::send_request(port, target, source, &kwp_request) {
+                        Ok(kwp_response) => {
+                            if kwp_response.first() == Some(&0x58) {
+                                let dtcs = parse_kwp_dtc_response(&kwp_response);
+                                Ok(DtcReadResult {
+                                    success: true,
+                                    count: dtcs.len(),
+                                    dtcs,
+                                    message: "DTCs read successfully (KWP2000)".to_string(),
+                                })
+                            } else {
+                                Ok(DtcReadResult {
+                                    success: false,
+                                    count: 0,
+                                    dtcs: vec![],
+                                    message: format!("Unexpected KWP response: {:02X?}", kwp_response),
+                                })
+                            }
                         }
+                        Err(e) => Ok(DtcReadResult {
+                            success: false,
+                            count: 0,
+                            dtcs: vec![],
+                            message: format!("KWP2000 request failed: {}", e),
+                        }),
                     }
-                    Err(e) => Ok(DtcReadResult {
+                } else {
+                    Ok(DtcReadResult {
                         success: false,
                         count: 0,
                         dtcs: vec![],
-                        message: format!("KWP2000 request failed: {}", e),
-                    }),
+                        message: format!("Unexpected response: {:02X?}", response),
+                    })
                 }
-            } else {
-                Ok(DtcReadResult {
-                    success: false,
-                    count: 0,
-                    dtcs: vec![],
-                    message: format!("Unexpected response: {:02X?}", response),
-                })
             }
+            Err(e) => Ok(DtcReadResult {
+                success: false,
+                count: 0,
+                dtcs: vec![],
+                message: format!("Request failed: {}", e),
+            }),
         }
-        Err(e) => Ok(DtcReadResult {
-            success: false,
-            count: 0,
-            dtcs: vec![],
-            message: format!("Request failed: {}", e),
-        }),
-    }
+    })
 }
 
 /// Clear DTCs from ECU via K-Line
@@ -241,38 +199,31 @@ pub fn bmw_clear_dtcs_kline(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<String, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // UDS ClearDiagnosticInformation (0x14) with group = all (0xFFFFFF)
+        let request = vec![0x14, 0xFF, 0xFF, 0xFF];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // UDS ClearDiagnosticInformation (0x14) with group = all (0xFFFFFF)
-    let request = vec![0x14, 0xFF, 0xFF, 0xFF];
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x54) {
-                Ok("DTCs cleared successfully".to_string())
-            } else if response.first() == Some(&0x7F) {
-                let nrc = response.get(2).copied().unwrap_or(0);
-                Err(format!(
-                    "Clear failed: {} (0x{:02X})",
-                    bmw::nrc::description(nrc),
-                    nrc
-                ))
-            } else {
-                Err(format!("Unexpected response: {:02X?}", response))
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x54) {
+                    Ok("DTCs cleared successfully".to_string())
+                } else if response.first() == Some(&0x7F) {
+                    let nrc = response.get(2).copied().unwrap_or(0);
+                    Err(format!(
+                        "Clear failed: {} (0x{:02X})",
+                        bmw::nrc::description(nrc),
+                        nrc
+                    ))
+                } else {
+                    Err(format!("Unexpected response: {:02X?}", response))
+                }
             }
+            Err(e) => Err(format!("Request failed: {}", e)),
         }
-        Err(e) => Err(format!("Request failed: {}", e)),
-    }
+    })
 }
 
 /// Read ECU identification
@@ -281,46 +232,39 @@ pub fn bmw_read_ecu_id(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<String, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // UDS ReadDataByIdentifier (0x22) with ID 0xF190 (VIN)
+        let request = vec![0x22, 0xF1, 0x90];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // UDS ReadDataByIdentifier (0x22) with ID 0xF190 (VIN)
-    let request = vec![0x22, 0xF1, 0x90];
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x62) {
-                // Skip service ID and identifier
-                let data = &response[3..];
-                // Convert to string (VIN is ASCII)
-                let vin: String = data
-                    .iter()
-                    .filter(|&&b| b >= 0x20 && b <= 0x7E)
-                    .map(|&b| b as char)
-                    .collect();
-                Ok(vin)
-            } else if response.first() == Some(&0x7F) {
-                let nrc = response.get(2).copied().unwrap_or(0);
-                Err(format!(
-                    "Read failed: {} (0x{:02X})",
-                    bmw::nrc::description(nrc),
-                    nrc
-                ))
-            } else {
-                Err(format!("Unexpected response: {:02X?}", response))
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x62) {
+                    // Skip service ID and identifier
+                    let data = &response[3..];
+                    // Convert to string (VIN is ASCII)
+                    let vin: String = data
+                        .iter()
+                        .filter(|&&b| b >= 0x20 && b <= 0x7E)
+                        .map(|&b| b as char)
+                        .collect();
+                    Ok(vin)
+                } else if response.first() == Some(&0x7F) {
+                    let nrc = response.get(2).copied().unwrap_or(0);
+                    Err(format!(
+                        "Read failed: {} (0x{:02X})",
+                        bmw::nrc::description(nrc),
+                        nrc
+                    ))
+                } else {
+                    Err(format!("Unexpected response: {:02X?}", response))
+                }
             }
+            Err(e) => Err(format!("Request failed: {}", e)),
         }
-        Err(e) => Err(format!("Request failed: {}", e)),
-    }
+    })
 }
 
 /// Send TesterPresent to keep session alive
@@ -329,19 +273,10 @@ pub fn bmw_tester_present(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<(), String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    KLineHandler::tester_present(port, target, source)
+    state.with_port(|port| KLineHandler::tester_present(port, target, source))
 }
 
 // Helper functions
@@ -415,54 +350,46 @@ pub fn bmw_start_session(
     target_address: Option<u8>,
     session_type: u8,
 ) -> Result<SessionResult, String> {
-    let target = target_address.unwrap_or(0x12); // DDE address
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Starting diagnostic session 0x{:02X} on ECU 0x{:02X}", session_type, target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // UDS DiagnosticSessionControl (0x10)
+        let request = vec![0x10, session_type];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // UDS DiagnosticSessionControl (0x10)
-    let request = vec![0x10, session_type];
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x50) {
-                // Positive response
-                log::info!("Session 0x{:02X} started successfully", session_type);
-                Ok(SessionResult {
-                    success: true,
-                    session_type,
-                    message: format!("Session 0x{:02X} active", session_type),
-                })
-            } else if response.first() == Some(&0x7F) {
-                let nrc = response.get(2).copied().unwrap_or(0);
-                Ok(SessionResult {
-                    success: false,
-                    session_type,
-                    message: format!("Session rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
-                })
-            } else {
-                Ok(SessionResult {
-                    success: false,
-                    session_type,
-                    message: format!("Unexpected response: {:02X?}", response),
-                })
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x50) {
+                    log::info!("Session 0x{:02X} started successfully", session_type);
+                    Ok(SessionResult {
+                        success: true,
+                        session_type,
+                        message: format!("Session 0x{:02X} active", session_type),
+                    })
+                } else if response.first() == Some(&0x7F) {
+                    let nrc = response.get(2).copied().unwrap_or(0);
+                    Ok(SessionResult {
+                        success: false,
+                        session_type,
+                        message: format!("Session rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
+                    })
+                } else {
+                    Ok(SessionResult {
+                        success: false,
+                        session_type,
+                        message: format!("Unexpected response: {:02X?}", response),
+                    })
+                }
             }
+            Err(e) => Ok(SessionResult {
+                success: false,
+                session_type,
+                message: format!("Request failed: {}", e),
+            }),
         }
-        Err(e) => Ok(SessionResult {
-            success: false,
-            session_type,
-            message: format!("Request failed: {}", e),
-        }),
-    }
+    })
 }
 
 /// Perform security access (may be required for some DPF functions)
@@ -472,87 +399,80 @@ pub fn bmw_security_access(
     target_address: Option<u8>,
     level: u8,
 ) -> Result<SecurityResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Starting security access level 0x{:02X} on ECU 0x{:02X}", level, target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Step 1: Request seed
+        let seed_request = vec![0x27, level];
+        let seed_response = KLineHandler::send_request(port, target, source, &seed_request)
+            .map_err(|e| format!("Seed request failed: {}", e))?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        if seed_response.first() == Some(&0x7F) {
+            let nrc = seed_response.get(2).copied().unwrap_or(0);
+            return Ok(SecurityResult {
+                success: false,
+                level,
+                message: format!("Seed request rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
+            });
+        }
 
-    // Step 1: Request seed
-    let seed_request = vec![0x27, level];
-    let seed_response = KLineHandler::send_request(port, target, source, &seed_request)
-        .map_err(|e| format!("Seed request failed: {}", e))?;
+        if seed_response.first() != Some(&0x67) {
+            return Ok(SecurityResult {
+                success: false,
+                level,
+                message: format!("Unexpected seed response: {:02X?}", seed_response),
+            });
+        }
 
-    if seed_response.first() == Some(&0x7F) {
-        let nrc = seed_response.get(2).copied().unwrap_or(0);
-        return Ok(SecurityResult {
-            success: false,
-            level,
-            message: format!("Seed request rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
-        });
-    }
+        // Extract seed (skip service ID and sub-function)
+        let seed = &seed_response[2..];
+        log::info!("Received seed: {:02X?}", seed);
 
-    if seed_response.first() != Some(&0x67) {
-        return Ok(SecurityResult {
-            success: false,
-            level,
-            message: format!("Unexpected seed response: {:02X?}", seed_response),
-        });
-    }
+        // Check if already unlocked (seed = all zeros)
+        if seed.iter().all(|&b| b == 0) {
+            log::info!("ECU already unlocked");
+            return Ok(SecurityResult {
+                success: true,
+                level,
+                message: "Already unlocked".to_string(),
+            });
+        }
 
-    // Extract seed (skip service ID and sub-function)
-    let seed = &seed_response[2..];
-    log::info!("Received seed: {:02X?}", seed);
+        // Step 2: Calculate and send key
+        let key = security::calculate_key_simple(seed);
+        log::info!("Calculated key: {:02X?}", key);
 
-    // Check if already unlocked (seed = all zeros)
-    if seed.iter().all(|&b| b == 0) {
-        log::info!("ECU already unlocked");
-        return Ok(SecurityResult {
-            success: true,
-            level,
-            message: "Already unlocked".to_string(),
-        });
-    }
+        let mut key_request = vec![0x27, level + 1]; // sendKey is requestSeed + 1
+        key_request.extend_from_slice(&key);
 
-    // Step 2: Calculate and send key
-    let key = security::calculate_key_simple(seed);
-    log::info!("Calculated key: {:02X?}", key);
+        let key_response = KLineHandler::send_request(port, target, source, &key_request)
+            .map_err(|e| format!("Key request failed: {}", e))?;
 
-    let mut key_request = vec![0x27, level + 1]; // sendKey is requestSeed + 1
-    key_request.extend_from_slice(&key);
-
-    let key_response = KLineHandler::send_request(port, target, source, &key_request)
-        .map_err(|e| format!("Key request failed: {}", e))?;
-
-    if key_response.first() == Some(&0x67) {
-        log::info!("Security access granted");
-        Ok(SecurityResult {
-            success: true,
-            level,
-            message: "Security access granted".to_string(),
-        })
-    } else if key_response.first() == Some(&0x7F) {
-        let nrc = key_response.get(2).copied().unwrap_or(0);
-        Ok(SecurityResult {
-            success: false,
-            level,
-            message: format!("Key rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
-        })
-    } else {
-        Ok(SecurityResult {
-            success: false,
-            level,
-            message: format!("Unexpected key response: {:02X?}", key_response),
-        })
-    }
+        if key_response.first() == Some(&0x67) {
+            log::info!("Security access granted");
+            Ok(SecurityResult {
+                success: true,
+                level,
+                message: "Security access granted".to_string(),
+            })
+        } else if key_response.first() == Some(&0x7F) {
+            let nrc = key_response.get(2).copied().unwrap_or(0);
+            Ok(SecurityResult {
+                success: false,
+                level,
+                message: format!("Key rejected: {} (0x{:02X})", bmw::nrc::description(nrc), nrc),
+            })
+        } else {
+            Ok(SecurityResult {
+                success: false,
+                level,
+                message: format!("Unexpected key response: {:02X?}", key_response),
+            })
+        }
+    })
 }
 
 /// Execute a DPF routine (internal helper)
@@ -623,30 +543,22 @@ pub fn bmw_dpf_reset_ash(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Resetting DPF ash counter on ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Try primary routine ID first
+        let result = execute_dpf_routine(port, target, source, dpf_routines::RESET_ASH_LOADING, routine::START)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        if !result.success {
+            log::info!("Primary routine failed, trying alternative ID");
+            return execute_dpf_routine(port, target, source, dpf_routines::alt::RESET_ASH, routine::START);
+        }
 
-    // Try primary routine ID first
-    let result = execute_dpf_routine(port, target, source, dpf_routines::RESET_ASH_LOADING, routine::START)?;
-
-    if !result.success {
-        // Try alternative routine ID
-        log::info!("Primary routine failed, trying alternative ID");
-        return execute_dpf_routine(port, target, source, dpf_routines::alt::RESET_ASH, routine::START);
-    }
-
-    Ok(result)
+        Ok(result)
+    })
 }
 
 /// Reset DPF learned/adaptation values
@@ -655,30 +567,21 @@ pub fn bmw_dpf_reset_learned(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Resetting DPF learned values on ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        let result = execute_dpf_routine(port, target, source, dpf_routines::RESET_LEARNED_VALUES, routine::START)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        if !result.success {
+            log::info!("Primary routine failed, trying alternative ID");
+            return execute_dpf_routine(port, target, source, dpf_routines::alt::RESET_ADAPTATION, routine::START);
+        }
 
-    // Try primary routine ID first
-    let result = execute_dpf_routine(port, target, source, dpf_routines::RESET_LEARNED_VALUES, routine::START)?;
-
-    if !result.success {
-        // Try alternative routine ID
-        log::info!("Primary routine failed, trying alternative ID");
-        return execute_dpf_routine(port, target, source, dpf_routines::alt::RESET_ADAPTATION, routine::START);
-    }
-
-    Ok(result)
+        Ok(result)
+    })
 }
 
 /// Register new DPF installed
@@ -687,30 +590,21 @@ pub fn bmw_dpf_new_installed(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Registering new DPF on ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        let result = execute_dpf_routine(port, target, source, dpf_routines::NEW_DPF_INSTALLED, routine::START)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        if !result.success {
+            log::info!("Primary routine failed, trying alternative ID");
+            return execute_dpf_routine(port, target, source, dpf_routines::alt::NEW_DPF, routine::START);
+        }
 
-    // Try primary routine ID first
-    let result = execute_dpf_routine(port, target, source, dpf_routines::NEW_DPF_INSTALLED, routine::START)?;
-
-    if !result.success {
-        // Try alternative routine ID
-        log::info!("Primary routine failed, trying alternative ID");
-        return execute_dpf_routine(port, target, source, dpf_routines::alt::NEW_DPF, routine::START);
-    }
-
-    Ok(result)
+        Ok(result)
+    })
 }
 
 /// Start forced DPF regeneration
@@ -720,29 +614,22 @@ pub fn bmw_dpf_start_regen(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::warn!("Starting forced DPF regeneration on ECU 0x{:02X}", target);
     log::warn!("WARNING: Ensure vehicle is stationary and engine is running!");
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        let result = execute_dpf_routine(port, target, source, dpf_routines::START_FORCED_REGEN, routine::START)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
+        if !result.success {
+            log::info!("Primary routine failed, trying alternative ID");
+            return execute_dpf_routine(port, target, source, dpf_routines::alt::FORCED_REGEN, routine::START);
+        }
 
-    let result = execute_dpf_routine(port, target, source, dpf_routines::START_FORCED_REGEN, routine::START)?;
-
-    if !result.success {
-        log::info!("Primary routine failed, trying alternative ID");
-        return execute_dpf_routine(port, target, source, dpf_routines::alt::FORCED_REGEN, routine::START);
-    }
-
-    Ok(result)
+        Ok(result)
+    })
 }
 
 /// Stop forced DPF regeneration
@@ -751,21 +638,14 @@ pub fn bmw_dpf_stop_regen(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Stopping forced DPF regeneration on ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    execute_dpf_routine(port, target, source, dpf_routines::STOP_FORCED_REGEN, routine::STOP)
+    state.with_port(|port| {
+        execute_dpf_routine(port, target, source, dpf_routines::STOP_FORCED_REGEN, routine::STOP)
+    })
 }
 
 /// Read DPF status information
@@ -774,16 +654,12 @@ pub fn bmw_dpf_read_status(
     state: State<SerialState>,
     target_address: Option<u8>,
 ) -> Result<DpfStatus, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!("Reading DPF status from ECU 0x{:02X}", target);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -883,8 +759,8 @@ pub fn bmw_routine_control(
     sub_function: u8,
     data: Option<Vec<u8>>,
 ) -> Result<DpfRoutineResult, String> {
-    let target = target_address.unwrap_or(0x12);
-    let source = 0xF1;
+    let target = target_address.unwrap_or(addresses::DME_DDE);
+    let source = addresses::TESTER;
 
     log::info!(
         "Executing routine 0x{:04X} sub-function 0x{:02X} on ECU 0x{:02X}",
@@ -893,56 +769,49 @@ pub fn bmw_routine_control(
         target
     );
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        let routine_hi = (routine_id >> 8) as u8;
+        let routine_lo = (routine_id & 0xFF) as u8;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    let routine_hi = (routine_id >> 8) as u8;
-    let routine_lo = (routine_id & 0xFF) as u8;
-
-    let mut request = vec![0x31, sub_function, routine_hi, routine_lo];
-    if let Some(extra_data) = data {
-        request.extend_from_slice(&extra_data);
-    }
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x71) {
-                Ok(DpfRoutineResult {
-                    success: true,
-                    routine_id,
-                    status: "OK".to_string(),
-                    data: response[3..].to_vec(),
-                })
-            } else if response.first() == Some(&0x7F) {
-                let nrc = response.get(2).copied().unwrap_or(0);
-                Ok(DpfRoutineResult {
-                    success: false,
-                    routine_id,
-                    status: format!("{} (0x{:02X})", bmw::nrc::description(nrc), nrc),
-                    data: vec![],
-                })
-            } else {
-                Ok(DpfRoutineResult {
-                    success: false,
-                    routine_id,
-                    status: format!("Unexpected: {:02X?}", response),
-                    data: vec![],
-                })
-            }
+        let mut request = vec![0x31, sub_function, routine_hi, routine_lo];
+        if let Some(extra_data) = data {
+            request.extend_from_slice(&extra_data);
         }
-        Err(e) => Ok(DpfRoutineResult {
-            success: false,
-            routine_id,
-            status: format!("Failed: {}", e),
-            data: vec![],
-        }),
-    }
+
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x71) {
+                    Ok(DpfRoutineResult {
+                        success: true,
+                        routine_id,
+                        status: "OK".to_string(),
+                        data: response[3..].to_vec(),
+                    })
+                } else if response.first() == Some(&0x7F) {
+                    let nrc = response.get(2).copied().unwrap_or(0);
+                    Ok(DpfRoutineResult {
+                        success: false,
+                        routine_id,
+                        status: format!("{} (0x{:02X})", bmw::nrc::description(nrc), nrc),
+                        data: vec![],
+                    })
+                } else {
+                    Ok(DpfRoutineResult {
+                        success: false,
+                        routine_id,
+                        status: format!("Unexpected: {:02X?}", response),
+                        data: vec![],
+                    })
+                }
+            }
+            Err(e) => Ok(DpfRoutineResult {
+                success: false,
+                routine_id,
+                status: format!("Failed: {}", e),
+                data: vec![],
+            }),
+        }
+    })
 }
 
 // ============================================================================
@@ -972,20 +841,16 @@ pub struct DscSensorStatus {
 /// Read DTCs from DSC module
 #[tauri::command]
 pub fn bmw_dsc_read_dtcs(state: State<SerialState>) -> Result<DtcReadResult, String> {
-    bmw_read_dtcs_kline(state, Some(0x44))
+    bmw_read_dtcs_kline(state, Some(addresses::DSC))
 }
 
 /// Read wheel speed sensors from DSC
 #[tauri::command]
 pub fn bmw_dsc_read_wheel_speeds(state: State<SerialState>) -> Result<WheelSpeedData, String> {
-    let target = 0x44; // DSC address
-    let source = 0xF1;
+    let target = addresses::DSC;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1040,14 +905,10 @@ pub fn bmw_dsc_read_wheel_speeds(state: State<SerialState>) -> Result<WheelSpeed
 /// Read DSC sensor status
 #[tauri::command]
 pub fn bmw_dsc_read_sensors(state: State<SerialState>) -> Result<DscSensorStatus, String> {
-    let target = 0x44;
-    let source = 0xF1;
+    let target = addresses::DSC;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1106,8 +967,8 @@ pub fn bmw_dsc_bleed_brakes(
     state: State<SerialState>,
     corner: String, // "FL", "FR", "RL", "RR", or "ALL"
 ) -> Result<DpfRoutineResult, String> {
-    let target = 0x44;
-    let source = 0xF1;
+    let target = addresses::DSC;
+    let source = addresses::TESTER;
 
     let routine_id: u16 = match corner.as_str() {
         "FL" => 0xFF01,
@@ -1120,16 +981,9 @@ pub fn bmw_dsc_bleed_brakes(
 
     log::warn!("Starting ABS bleed routine for {} on DSC", corner);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    execute_dpf_routine(port, target, source, routine_id, routine::START)
+    state.with_port(|port| {
+        execute_dpf_routine(port, target, source, routine_id, routine::START)
+    })
 }
 
 // ============================================================================
@@ -1159,20 +1013,16 @@ pub struct VehicleInfo {
 /// Read DTCs from instrument cluster
 #[tauri::command]
 pub fn bmw_kombi_read_dtcs(state: State<SerialState>) -> Result<DtcReadResult, String> {
-    bmw_read_dtcs_kline(state, Some(0x60))
+    bmw_read_dtcs_kline(state, Some(addresses::KOMBI))
 }
 
 /// Read service intervals from KOMBI
 #[tauri::command]
 pub fn bmw_kombi_read_service(state: State<SerialState>) -> Result<ServiceInfo, String> {
-    let target = 0x60;
-    let source = 0xF1;
+    let target = addresses::KOMBI;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1230,8 +1080,8 @@ pub fn bmw_kombi_reset_service(
     state: State<SerialState>,
     service_type: String, // "oil", "inspection", "brake_fluid"
 ) -> Result<DpfRoutineResult, String> {
-    let target = 0x60;
-    let source = 0xF1;
+    let target = addresses::KOMBI;
+    let source = addresses::TESTER;
 
     let routine_id: u16 = match service_type.as_str() {
         "oil" => 0xAB01,
@@ -1243,65 +1093,46 @@ pub fn bmw_kombi_reset_service(
 
     log::info!("Resetting {} service on KOMBI", service_type);
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    execute_dpf_routine(port, target, source, routine_id, routine::START)
+    state.with_port(|port| {
+        execute_dpf_routine(port, target, source, routine_id, routine::START)
+    })
 }
 
 /// Run gauge sweep test on KOMBI
 #[tauri::command]
 pub fn bmw_kombi_gauge_test(state: State<SerialState>) -> Result<DpfRoutineResult, String> {
-    let target = 0x60;
-    let source = 0xF1;
+    let target = addresses::KOMBI;
+    let source = addresses::TESTER;
 
     log::info!("Starting gauge sweep test on KOMBI");
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Gauge test routine ID varies by KOMBI version - try common IDs
+        let routine_ids = [0xDF00, 0xF000, 0xFF00];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Gauge test routine ID varies by KOMBI version
-    // Try common IDs
-    let routine_ids = [0xDF00, 0xF000, 0xFF00];
-
-    for &routine_id in &routine_ids {
-        let result = execute_dpf_routine(port, target, source, routine_id, routine::START)?;
-        if result.success {
-            return Ok(result);
+        for &routine_id in &routine_ids {
+            let result = execute_dpf_routine(port, target, source, routine_id, routine::START)?;
+            if result.success {
+                return Ok(result);
+            }
         }
-    }
 
-    Ok(DpfRoutineResult {
-        success: false,
-        routine_id: 0,
-        status: "Gauge test routine not supported".to_string(),
-        data: vec![],
+        Ok(DpfRoutineResult {
+            success: false,
+            routine_id: 0,
+            status: "Gauge test routine not supported".to_string(),
+            data: vec![],
+        })
     })
 }
 
 /// Read vehicle info from KOMBI (mileage, fuel, etc)
 #[tauri::command]
 pub fn bmw_kombi_read_info(state: State<SerialState>) -> Result<VehicleInfo, String> {
-    let target = 0x60;
-    let source = 0xF1;
+    let target = addresses::KOMBI;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1387,20 +1218,16 @@ pub struct LampStatus {
 /// Read DTCs from FRM
 #[tauri::command]
 pub fn bmw_frm_read_dtcs(state: State<SerialState>) -> Result<DtcReadResult, String> {
-    bmw_read_dtcs_kline(state, Some(0x68))
+    bmw_read_dtcs_kline(state, Some(addresses::FRM))
 }
 
 /// Read lamp failure status from FRM
 #[tauri::command]
 pub fn bmw_frm_read_lamp_status(state: State<SerialState>) -> Result<LampStatus, String> {
-    let target = 0x68;
-    let source = 0xF1;
+    let target = addresses::FRM;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1446,22 +1273,14 @@ pub fn bmw_frm_read_lamp_status(state: State<SerialState>) -> Result<LampStatus,
 /// Run lamp test on FRM (flash all lights)
 #[tauri::command]
 pub fn bmw_frm_lamp_test(state: State<SerialState>) -> Result<DpfRoutineResult, String> {
-    let target = 0x68;
-    let source = 0xF1;
+    let target = addresses::FRM;
+    let source = addresses::TESTER;
 
     log::info!("Starting lamp test on FRM");
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Lamp test routine
-    execute_dpf_routine(port, target, source, 0xF001, routine::START)
+    state.with_port(|port| {
+        execute_dpf_routine(port, target, source, 0xF001, routine::START)
+    })
 }
 
 /// Control a specific lamp (for testing)
@@ -1471,35 +1290,28 @@ pub fn bmw_frm_control_lamp(
     lamp_id: u8,
     on: bool,
 ) -> Result<String, String> {
-    let target = 0x68;
-    let source = 0xF1;
+    let target = addresses::FRM;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // IO Control (0x2F) to control lamp
+        let control_param = if on { 0x03 } else { 0x00 }; // 0x03 = ON, 0x00 = Return control
+        let request = vec![0x2F, 0x68, lamp_id, control_param];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // IO Control (0x2F) to control lamp
-    let control_param = if on { 0x03 } else { 0x00 }; // 0x03 = ON, 0x00 = Return control
-    let request = vec![0x2F, 0x68, lamp_id, control_param];
-
-    match KLineHandler::send_request(port, target, source, &request) {
-        Ok(response) => {
-            if response.first() == Some(&0x6F) {
-                Ok(format!("Lamp {} {}", lamp_id, if on { "ON" } else { "OFF" }))
-            } else if response.first() == Some(&0x7F) {
-                let nrc = response.get(2).copied().unwrap_or(0);
-                Err(format!("Control failed: {} (0x{:02X})", bmw::nrc::description(nrc), nrc))
-            } else {
-                Err(format!("Unexpected response: {:02X?}", response))
+        match KLineHandler::send_request(port, target, source, &request) {
+            Ok(response) => {
+                if response.first() == Some(&0x6F) {
+                    Ok(format!("Lamp {} {}", lamp_id, if on { "ON" } else { "OFF" }))
+                } else if response.first() == Some(&0x7F) {
+                    let nrc = response.get(2).copied().unwrap_or(0);
+                    Err(format!("Control failed: {} (0x{:02X})", bmw::nrc::description(nrc), nrc))
+                } else {
+                    Err(format!("Unexpected response: {:02X?}", response))
+                }
             }
+            Err(e) => Err(format!("Request failed: {}", e)),
         }
-        Err(e) => Err(format!("Request failed: {}", e)),
-    }
+    })
 }
 
 // ============================================================================
@@ -1520,20 +1332,16 @@ pub struct EgsStatus {
 /// Read DTCs from EGS
 #[tauri::command]
 pub fn bmw_egs_read_dtcs(state: State<SerialState>) -> Result<DtcReadResult, String> {
-    bmw_read_dtcs_kline(state, Some(0x32))
+    bmw_read_dtcs_kline(state, Some(addresses::EGS))
 }
 
 /// Read EGS transmission status
 #[tauri::command]
 pub fn bmw_egs_read_status(state: State<SerialState>) -> Result<EgsStatus, String> {
-    let target = 0x32;
-    let source = 0xF1;
+    let target = addresses::EGS;
+    let source = addresses::TESTER;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1597,35 +1405,28 @@ pub fn bmw_egs_read_status(state: State<SerialState>) -> Result<EgsStatus, Strin
 /// Requires extended session and possibly security access
 #[tauri::command]
 pub fn bmw_egs_reset_adaptations(state: State<SerialState>) -> Result<DpfRoutineResult, String> {
-    let target = 0x32;
-    let source = 0xF1;
+    let target = addresses::EGS;
+    let source = addresses::TESTER;
 
     log::info!("Resetting EGS adaptations");
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Reset adaptation routine - try common IDs
+        let routine_ids = [0xFF01, 0xAB01, 0x0001];
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Reset adaptation routine - try common IDs
-    let routine_ids = [0xFF01, 0xAB01, 0x0001];
-
-    for &routine_id in &routine_ids {
-        let result = execute_dpf_routine(port, target, source, routine_id, routine::START)?;
-        if result.success {
-            return Ok(result);
+        for &routine_id in &routine_ids {
+            let result = execute_dpf_routine(port, target, source, routine_id, routine::START)?;
+            if result.success {
+                return Ok(result);
+            }
         }
-    }
 
-    Ok(DpfRoutineResult {
-        success: false,
-        routine_id: 0,
-        status: "Reset adaptation routine not supported".to_string(),
-        data: vec![],
+        Ok(DpfRoutineResult {
+            success: false,
+            routine_id: 0,
+            status: "Reset adaptation routine not supported".to_string(),
+            data: vec![],
+        })
     })
 }
 
@@ -1648,33 +1449,26 @@ pub fn bmw_read_dtcs_dcan(
     let (tx_id, rx_id) = can_ids::for_ecu(&ecu_name)
         .ok_or_else(|| format!("Unknown ECU for D-CAN: {}", ecu_name))?;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        // Switch to D-CAN mode
+        DCanHandler::switch_to_dcan_mode(port)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Switch to D-CAN mode
-    DCanHandler::switch_to_dcan_mode(port)?;
-
-    // Read DTCs
-    match DCanHandler::read_dtcs(port, tx_id, rx_id) {
-        Ok(dtcs) => Ok(DtcReadResult {
-            success: true,
-            count: dtcs.len(),
-            dtcs,
-            message: format!("DTCs read from {} via D-CAN", ecu_name),
-        }),
-        Err(e) => Ok(DtcReadResult {
-            success: false,
-            count: 0,
-            dtcs: vec![],
-            message: e,
-        }),
-    }
+        // Read DTCs
+        match DCanHandler::read_dtcs(port, tx_id, rx_id) {
+            Ok(dtcs) => Ok(DtcReadResult {
+                success: true,
+                count: dtcs.len(),
+                dtcs,
+                message: format!("DTCs read from {} via D-CAN", ecu_name),
+            }),
+            Err(e) => Ok(DtcReadResult {
+                success: false,
+                count: 0,
+                dtcs: vec![],
+                message: e,
+            }),
+        }
+    })
 }
 
 /// Auto-detect protocol and read DTCs
@@ -1684,11 +1478,7 @@ pub fn bmw_read_dtcs_auto(
     ecu_name: String,
     kline_address: Option<u8>,
 ) -> Result<DtcReadResult, String> {
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
+    let mut manager = state.lock_manager()?;
     let port = manager
         .get_port_mut()
         .ok_or_else(|| "Not connected".to_string())?;
@@ -1719,17 +1509,17 @@ pub fn bmw_read_dtcs_auto(
         "K-Line" => {
             let target = kline_address.unwrap_or_else(|| {
                 match ecu_name.to_uppercase().as_str() {
-                    "DDE" | "DME" => 0x12,
-                    "EGS" => 0x32,
-                    "DSC" => 0x44,
-                    "KOMBI" => 0x60,
-                    "FRM" => 0x68,
-                    "ACSM" => 0x6C,
-                    "CAS" => 0x40,
+                    "DDE" | "DME" => addresses::DME_DDE,
+                    "EGS" => addresses::EGS,
+                    "DSC" => addresses::DSC,
+                    "KOMBI" => addresses::KOMBI,
+                    "FRM" => addresses::FRM,
+                    "ACSM" => addresses::AIRBAG,
+                    "CAS" => addresses::CAS,
                     _ => 0x00,
                 }
             });
-            let source = 0xF1;
+            let source = addresses::TESTER;
 
             // UDS ReadDTCInformation
             let request = vec![0x19, 0x02, 0xFF];
@@ -1761,16 +1551,7 @@ pub fn bmw_detect_protocol(
     state: State<SerialState>,
     ecu_name: String,
 ) -> Result<String, String> {
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    detect_ecu_protocol(port, &ecu_name)
+    state.with_port(|port| detect_ecu_protocol(port, &ecu_name))
 }
 
 /// Read DID via D-CAN
@@ -1783,19 +1564,10 @@ pub fn bmw_read_did_dcan(
     let (tx_id, rx_id) = can_ids::for_ecu(&ecu_name)
         .ok_or_else(|| format!("Unknown ECU for D-CAN: {}", ecu_name))?;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Switch to D-CAN mode
-    DCanHandler::switch_to_dcan_mode(port)?;
-
-    DCanHandler::read_data_by_id(port, tx_id, rx_id, did)
+    state.with_port(|port| {
+        DCanHandler::switch_to_dcan_mode(port)?;
+        DCanHandler::read_data_by_id(port, tx_id, rx_id, did)
+    })
 }
 
 /// Start session via D-CAN
@@ -1808,30 +1580,22 @@ pub fn bmw_start_session_dcan(
     let (tx_id, rx_id) = can_ids::for_ecu(&ecu_name)
         .ok_or_else(|| format!("Unknown ECU for D-CAN: {}", ecu_name))?;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        DCanHandler::switch_to_dcan_mode(port)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Switch to D-CAN mode
-    DCanHandler::switch_to_dcan_mode(port)?;
-
-    match DCanHandler::start_session(port, tx_id, rx_id, session_type) {
-        Ok(()) => Ok(SessionResult {
-            success: true,
-            session_type,
-            message: format!("Session 0x{:02X} active on {} via D-CAN", session_type, ecu_name),
-        }),
-        Err(e) => Ok(SessionResult {
-            success: false,
-            session_type,
-            message: e,
-        }),
-    }
+        match DCanHandler::start_session(port, tx_id, rx_id, session_type) {
+            Ok(()) => Ok(SessionResult {
+                success: true,
+                session_type,
+                message: format!("Session 0x{:02X} active on {} via D-CAN", session_type, ecu_name),
+            }),
+            Err(e) => Ok(SessionResult {
+                success: false,
+                session_type,
+                message: e,
+            }),
+        }
+    })
 }
 
 /// Execute routine via D-CAN
@@ -1846,32 +1610,24 @@ pub fn bmw_routine_control_dcan(
     let (tx_id, rx_id) = can_ids::for_ecu(&ecu_name)
         .ok_or_else(|| format!("Unknown ECU for D-CAN: {}", ecu_name))?;
 
-    let mut manager = state
-        .0
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
+    state.with_port(|port| {
+        DCanHandler::switch_to_dcan_mode(port)?;
 
-    let port = manager
-        .get_port_mut()
-        .ok_or_else(|| "Not connected".to_string())?;
-
-    // Switch to D-CAN mode
-    DCanHandler::switch_to_dcan_mode(port)?;
-
-    match DCanHandler::routine_control(port, tx_id, rx_id, routine_id, sub_function, data.as_deref()) {
-        Ok(result_data) => Ok(DpfRoutineResult {
-            success: true,
-            routine_id,
-            status: "OK".to_string(),
-            data: result_data,
-        }),
-        Err(e) => Ok(DpfRoutineResult {
-            success: false,
-            routine_id,
-            status: e,
-            data: vec![],
-        }),
-    }
+        match DCanHandler::routine_control(port, tx_id, rx_id, routine_id, sub_function, data.as_deref()) {
+            Ok(result_data) => Ok(DpfRoutineResult {
+                success: true,
+                routine_id,
+                status: "OK".to_string(),
+                data: result_data,
+            }),
+            Err(e) => Ok(DpfRoutineResult {
+                success: false,
+                routine_id,
+                status: e,
+                data: vec![],
+            }),
+        }
+    })
 }
 
 /// Auto-detect and read DTCs from all known ECUs
@@ -1879,23 +1635,17 @@ pub fn bmw_routine_control_dcan(
 pub fn bmw_read_all_dtcs(state: State<SerialState>) -> Result<Vec<(String, DtcReadResult)>, String> {
     let ecus = bmw::e60_ecus();
     let mut all_results = Vec::new();
+    let source = addresses::TESTER;
 
     // We need to re-acquire the lock for each ECU
     // This is not efficient but works with the current architecture
     for ecu in ecus {
-        if let Some(addr) = ecu.kline_address {
+        if let Some(target) = ecu.kline_address {
             let result = {
-                let mut manager = state
-                    .0
-                    .lock()
-                    .map_err(|e| format!("Lock error: {}", e))?;
-
+                let mut manager = state.lock_manager()?;
                 let port = manager
                     .get_port_mut()
                     .ok_or_else(|| "Not connected".to_string())?;
-
-                let source = 0xF1;
-                let target = addr;
 
                 // Try to init communication with this ECU first
                 match KLineHandler::init_fast(port, target, source) {

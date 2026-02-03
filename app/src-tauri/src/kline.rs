@@ -3,6 +3,9 @@
 //! This module handles communication with BMW ECUs via K-Line.
 //! K-Line is used for older BMW systems and some body modules.
 
+// Allow unused items as they are part of the public API but not all are used internally
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::thread;
 use std::time::{Duration, Instant};

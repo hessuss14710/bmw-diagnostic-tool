@@ -1,18 +1,53 @@
 mod bmw;
 mod bmw_commands;
 mod commands;
+pub mod constants;
+pub mod database;
+mod db_commands;
 mod dcan;
 mod kline;
 mod pid_commands;
 mod serial;
+pub mod validators;
 
+use database::Database;
+use db_commands::DbState;
 use serial::SerialState;
+use std::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(SerialState::new())
+        .manage(DbState(Mutex::new(None)))
         .plugin(tauri_plugin_log::Builder::default().build())
+        .setup(|app| {
+            // Initialize database
+            let app_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app data directory");
+
+            // Create directory if it doesn't exist
+            std::fs::create_dir_all(&app_dir).expect("Failed to create app data directory");
+
+            let db_path = app_dir.join("bmw_diag.db");
+            log::info!("Initializing database at: {:?}", db_path);
+
+            match Database::new(db_path) {
+                Ok(db) => {
+                    let state: tauri::State<DbState> = app.state();
+                    *state.0.lock().unwrap() = Some(db);
+                    log::info!("Database initialized successfully");
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize database: {}", e);
+                }
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // Serial port commands
             commands::list_serial_ports,
@@ -85,6 +120,29 @@ pub fn run() {
             pid_commands::read_dids_kline,
             pid_commands::read_diesel_category_kline,
             pid_commands::get_diesel_categories,
+            // Database commands - Vehicles
+            db_commands::db_get_vehicles,
+            db_commands::db_get_vehicle,
+            db_commands::db_get_vehicle_by_vin,
+            db_commands::db_create_vehicle,
+            db_commands::db_update_vehicle,
+            db_commands::db_delete_vehicle,
+            // Database commands - Sessions
+            db_commands::db_create_session,
+            db_commands::db_get_sessions_for_vehicle,
+            db_commands::db_get_recent_sessions,
+            db_commands::db_delete_session,
+            // Database commands - DTCs
+            db_commands::db_add_dtcs,
+            db_commands::db_get_dtcs_for_session,
+            db_commands::db_get_dtc_history,
+            // Database commands - Settings
+            db_commands::db_get_setting,
+            db_commands::db_set_setting,
+            db_commands::db_get_all_settings,
+            // Database commands - Export/Stats
+            db_commands::db_export_all,
+            db_commands::db_get_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -15,7 +15,10 @@ interface AnalyzeRequest {
   }
 }
 
-// POST /api/dtc/analyze
+/**
+ * POST /api/dtc/analyze
+ * Analyze DTCs with AI - validation handled by middleware
+ */
 export async function analyzeHandler(
   req: Request<object, object, AnalyzeRequest>,
   res: Response
@@ -23,37 +26,22 @@ export async function analyzeHandler(
   try {
     const { dtcs, vehicle } = req.body
 
-    if (!dtcs || !Array.isArray(dtcs) || dtcs.length === 0) {
-      res.status(400).json({
-        error: "Invalid request",
-        message: "dtcs array is required",
-      })
-      return
-    }
-
-    // Validate DTC format
-    for (const dtc of dtcs) {
-      if (!dtc.code || typeof dtc.code !== "string") {
-        res.status(400).json({
-          error: "Invalid request",
-          message: "Each DTC must have a code string",
-        })
-        return
-      }
-    }
-
+    // Input already validated by middleware
     const analysis = await analyzeDtcs(dtcs, vehicle)
     res.json(analysis)
   } catch (error) {
     console.error("Error analyzing DTCs:", error)
     res.status(500).json({
       error: "Analysis failed",
-      message: error instanceof Error ? error.message : "Unknown error",
+      message: "Unable to process analysis request",
     })
   }
 }
 
-// GET /api/dtc/lookup/:code
+/**
+ * GET /api/dtc/lookup/:code
+ * Look up a DTC code - validation handled by middleware
+ */
 export function lookupHandler(
   req: Request<{ code: string }>,
   res: Response
@@ -61,14 +49,7 @@ export function lookupHandler(
   try {
     const { code } = req.params
 
-    if (!code) {
-      res.status(400).json({
-        error: "Invalid request",
-        message: "code parameter is required",
-      })
-      return
-    }
-
+    // Code already validated by middleware
     const result = lookupDtcCode(code.toUpperCase())
 
     if (!result) {
@@ -84,12 +65,15 @@ export function lookupHandler(
     console.error("Error looking up DTC:", error)
     res.status(500).json({
       error: "Lookup failed",
-      message: error instanceof Error ? error.message : "Unknown error",
+      message: "Unable to process lookup request",
     })
   }
 }
 
-// GET /api/dtc/codes
+/**
+ * GET /api/dtc/codes
+ * List all known DTC codes
+ */
 export function listCodesHandler(_req: Request, res: Response) {
   try {
     const codes = getAllKnownCodes()
@@ -101,12 +85,15 @@ export function listCodesHandler(_req: Request, res: Response) {
     console.error("Error listing codes:", error)
     res.status(500).json({
       error: "List failed",
-      message: error instanceof Error ? error.message : "Unknown error",
+      message: "Unable to retrieve code list",
     })
   }
 }
 
-// GET /api/health
+/**
+ * GET /api/health
+ * Health check endpoint
+ */
 export function healthHandler(_req: Request, res: Response) {
   res.json({
     status: "ok",

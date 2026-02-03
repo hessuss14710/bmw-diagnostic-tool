@@ -1,18 +1,29 @@
 import { useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
 import { EcuSelector } from "@/components/connection/EcuSelector"
 import { DTCList } from "@/components/dtc/DTCList"
 import { AIInterpretation } from "@/components/dtc/AIInterpretation"
 import type { useBMW } from "@/hooks/useBMW"
 import { useAI } from "@/hooks/useAI"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Alert,
+  Badge,
+  LedIndicator,
+  ConfirmModal,
+} from "@/components/ui"
+import {
   Search,
   Trash2,
-  CheckCircle2,
   XCircle,
-  Loader2,
   Zap,
+  Cpu,
+  AlertTriangle,
 } from "lucide-react"
+import { useState } from "react"
 
 interface DiagnosticsPanelProps {
   isConnected: boolean
@@ -43,7 +54,7 @@ export function DiagnosticsPanel({ isConnected, bmw }: DiagnosticsPanelProps) {
     clearAnalysis,
   } = useAI()
 
-  // TesterPresent interval ref
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const testerPresentRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Load ECUs when connected
@@ -56,9 +67,8 @@ export function DiagnosticsPanel({ isConnected, bmw }: DiagnosticsPanelProps) {
   // Start TesterPresent keepalive when initialized
   useEffect(() => {
     if (isInitialized && selectedEcu?.kline_address) {
-      // Send TesterPresent every 2 seconds to keep session alive
       testerPresentRef.current = setInterval(() => {
-        // Silent tester present - don't await
+        // Silent tester present
       }, 2000)
     }
 
@@ -78,10 +88,9 @@ export function DiagnosticsPanel({ isConnected, bmw }: DiagnosticsPanelProps) {
 
   const handleClearDtcs = async () => {
     if (selectedEcu?.kline_address) {
-      if (window.confirm("¿Estás seguro de borrar todos los códigos de error?")) {
-        await clearDtcs(selectedEcu.kline_address)
-        clearAnalysis()
-      }
+      await clearDtcs(selectedEcu.kline_address)
+      clearAnalysis()
+      setShowClearConfirm(false)
     }
   }
 
@@ -99,102 +108,136 @@ export function DiagnosticsPanel({ isConnected, bmw }: DiagnosticsPanelProps) {
 
   if (!isConnected) {
     return (
-      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6">
-        <div className="flex flex-col items-center justify-center py-4 text-zinc-500">
-          <XCircle className="h-12 w-12 text-zinc-600 mb-2" />
-          <p className="text-sm">Connect to your K+DCAN cable first</p>
+      <Card variant="default" padding="lg" className="animate-fade-in">
+        <div className="flex flex-col items-center justify-center py-8 text-zinc-500">
+          <div className="p-4 rounded-full bg-zinc-800/50 mb-4">
+            <XCircle className="h-10 w-10 text-zinc-600" />
+          </div>
+          <p className="text-sm font-medium text-zinc-400">No Connection</p>
+          <p className="text-xs text-zinc-600 mt-1">Connect to your K+DCAN cable first</p>
         </div>
-      </div>
+      </Card>
     )
   }
 
   return (
     <div className="space-y-4">
       {/* ECU Selection */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-        <EcuSelector
-          ecus={ecus}
-          selectedEcu={selectedEcu}
-          onSelect={selectEcu}
-          onLoadEcus={getEcus}
-          disabled={isLoading}
-        />
+      <Card variant="elevated" padding="md" className="animate-fade-in">
+        <CardHeader>
+          <CardTitle>
+            <Cpu className="h-5 w-5 text-blue-400" />
+            ECU Selection
+          </CardTitle>
+          {selectedEcu && (
+            <Badge
+              variant={isInitialized ? "success" : "warning"}
+              size="sm"
+            >
+              {isInitialized ? "Ready" : "Not Initialized"}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent>
+          <EcuSelector
+            ecus={ecus}
+            selectedEcu={selectedEcu}
+            onSelect={selectEcu}
+            onLoadEcus={getEcus}
+            disabled={isLoading}
+          />
 
-        {/* Connection Status */}
-        {selectedEcu && (
-          <div className="mt-4 flex items-center gap-2">
-            {isInitialized ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-green-500">
-                  Connected via {protocol}
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle className="h-4 w-4 text-amber-500" />
-                <span className="text-sm text-amber-500">Not initialized</span>
+          {/* Connection Status */}
+          {selectedEcu && (
+            <div className="mt-4 p-3 rounded-lg bg-zinc-900/50 border border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <LedIndicator
+                  status={isInitialized ? "success" : "warning"}
+                  size="md"
+                />
+                <div>
+                  {isInitialized ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-emerald-400">
+                        Connected
+                      </span>
+                      <Badge variant="outline" size="sm">
+                        {protocol}
+                      </Badge>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-medium text-amber-400">
+                      Not initialized
+                    </span>
+                  )}
+                  <p className="text-xs text-zinc-500">
+                    {selectedEcu.name}
+                  </p>
+                </div>
+              </div>
+
+              {!isInitialized && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="bmw"
                   onClick={handleInitialize}
-                  disabled={isLoading}
-                  className="ml-auto border-zinc-700"
+                  loading={isLoading}
+                  leftIcon={<Zap className="h-4 w-4" />}
                 >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Zap className="h-4 w-4" />
-                  )}
                   Initialize
                 </Button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Error Display */}
       {error && (
-        <div className="rounded-lg border border-red-900 bg-red-950 p-3 text-sm text-red-400">
+        <Alert variant="error" title="Error" onClose={() => {}}>
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Diagnostics Actions */}
       {selectedEcu && isInitialized && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Fault Codes</h3>
+        <Card variant="elevated" padding="md" className="animate-fade-in-up">
+          <CardHeader>
+            <CardTitle>
+              <AlertTriangle className="h-5 w-5 text-amber-400" />
+              Fault Codes
+              {dtcs.length > 0 && (
+                <Badge variant="error" size="sm" className="ml-2">
+                  {dtcs.length} {dtcs.length === 1 ? "code" : "codes"}
+                </Badge>
+              )}
+            </CardTitle>
             <div className="flex gap-2">
               <Button
                 size="sm"
+                variant="default"
                 onClick={handleReadDtcs}
-                disabled={isLoading}
-                className="bg-blue-600 hover:bg-blue-700"
+                loading={isLoading}
+                leftIcon={<Search className="h-4 w-4" />}
               >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Search className="h-4 w-4 mr-1" />
-                )}
                 Read
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleClearDtcs}
+                onClick={() => setShowClearConfirm(true)}
                 disabled={isLoading || dtcs.length === 0}
-                className="border-red-900 text-red-400 hover:bg-red-950"
+                leftIcon={<Trash2 className="h-4 w-4" />}
+                className="border-red-900/50 text-red-400 hover:bg-red-950/50 hover:border-red-800"
               >
-                <Trash2 className="h-4 w-4 mr-1" />
                 Clear
               </Button>
             </div>
-          </div>
-
-          <DTCList dtcs={dtcs} isLoading={isLoading} />
-        </div>
+          </CardHeader>
+          <CardContent>
+            <DTCList dtcs={dtcs} isLoading={isLoading} />
+          </CardContent>
+        </Card>
       )}
 
       {/* AI Analysis Section */}
@@ -211,13 +254,28 @@ export function DiagnosticsPanel({ isConnected, bmw }: DiagnosticsPanelProps) {
 
       {/* Help text when ECU selected but not initialized */}
       {selectedEcu && !isInitialized && !isLoading && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-center text-sm text-zinc-500">
-          <p>Click "Initialize" to start communication with the ECU</p>
-          <p className="text-xs mt-1">
-            Make sure ignition is ON (engine can be off)
-          </p>
-        </div>
+        <Alert variant="info" icon>
+          <div className="space-y-1">
+            <p>Click "Initialize" to start communication with the ECU</p>
+            <p className="text-xs opacity-75">
+              Make sure ignition is ON (engine can be off)
+            </p>
+          </div>
+        </Alert>
       )}
+
+      {/* Clear Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={handleClearDtcs}
+        title="Clear Fault Codes"
+        message="Are you sure you want to clear all fault codes? This action cannot be undone."
+        confirmText="Clear All"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isLoading}
+      />
     </div>
   )
 }

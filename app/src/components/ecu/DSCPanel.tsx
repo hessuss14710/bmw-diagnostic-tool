@@ -13,7 +13,7 @@ export function DSCPanel({ isConnected, isInitialized, selectedEcu }: DSCPanelPr
   const dsc = useDSC()
   const [autoRefresh, setAutoRefresh] = useState(false)
 
-  // Auto-refresh wheel speeds
+  // Auto-refresh wheel speeds - dsc functions are stable from hook
   useEffect(() => {
     if (!autoRefresh || !isInitialized) return
 
@@ -23,6 +23,7 @@ export function DSCPanel({ isConnected, isInitialized, selectedEcu }: DSCPanelPr
     }, 500)
 
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, isInitialized])
 
   const canOperate = isConnected && isInitialized && selectedEcu?.id === "DSC"

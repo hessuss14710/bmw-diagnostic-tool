@@ -8,19 +8,21 @@ interface FRMPanelProps {
   selectedEcu: EcuInfo | null
 }
 
-export function FRMPanel({ isConnected, isInitialized, selectedEcu }: FRMPanelProps) {
-  const frm = useFRM()
+interface LampIndicatorProps {
+  name: string
+  working: boolean | undefined
+}
 
-  const canOperate = isConnected && isInitialized && selectedEcu?.id === "FRM"
+/** Lamp status indicator - moved outside component to prevent recreation on each render */
+function LampIndicator({ name, working }: LampIndicatorProps) {
+  const bgClass = working === undefined
+    ? "bg-zinc-900 border-zinc-800"
+    : working
+    ? "bg-green-900/30 border-green-800"
+    : "bg-red-900/30 border-red-800"
 
-  const LampIndicator = ({ name, working }: { name: string; working: boolean | undefined }) => (
-    <div className={`p-2 rounded-lg border flex items-center gap-2 ${
-      working === undefined
-        ? "bg-zinc-900 border-zinc-800"
-        : working
-        ? "bg-green-900/30 border-green-800"
-        : "bg-red-900/30 border-red-800"
-    }`}>
+  return (
+    <div className={`p-2 rounded-lg border flex items-center gap-2 ${bgClass}`}>
       {working === undefined ? (
         <div className="w-3 h-3 rounded-full bg-zinc-600" />
       ) : working ? (
@@ -31,6 +33,12 @@ export function FRMPanel({ isConnected, isInitialized, selectedEcu }: FRMPanelPr
       <span className="text-xs">{name}</span>
     </div>
   )
+}
+
+export function FRMPanel({ isConnected, isInitialized, selectedEcu }: FRMPanelProps) {
+  const frm = useFRM()
+
+  const canOperate = isConnected && isInitialized && selectedEcu?.id === "FRM"
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
