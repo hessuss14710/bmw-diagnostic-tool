@@ -288,10 +288,6 @@ impl KLine {
         }
 
         // Enforce P3min timing: minimum time between end of last response and new request
-        // Windows tolerance: allow 3ms slack due to ~15ms timer resolution
-        #[cfg(target_os = "windows")]
-        const P3_TOLERANCE_MS: u64 = 3;
-        #[cfg(not(target_os = "windows"))]
         const P3_TOLERANCE_MS: u64 = 0;
 
         if let Some(last_time) = self.last_request_time {

@@ -199,9 +199,8 @@ impl FtdiConnection {
         Ok(())
     }
 
-    /// High-precision delay for microseconds (Linux version)
+    /// High-precision delay for microseconds
     /// Uses thread::sleep for bulk of delay, spin-wait only for final precision
-    #[cfg(not(target_os = "windows"))]
     pub fn delay_us(us: u64) {
         let start = Instant::now();
         let target = Duration::from_micros(us);
@@ -218,30 +217,8 @@ impl FtdiConnection {
         }
     }
 
-    /// High-precision delay for microseconds (Windows version)
-    /// Windows has ~15.6ms timer resolution, so we use different thresholds
-    #[cfg(target_os = "windows")]
-    pub fn delay_us(us: u64) {
-        let start = Instant::now();
-        let target = Duration::from_micros(us);
-
-        // Windows sleep() has ~15ms resolution, so:
-        // - For < 15ms: pure spin-wait (no sleep, it would overshoot)
-        // - For >= 15ms: sleep with 5ms safety margin, then spin-wait
-        if us >= 15000 {
-            let sleep_time = Duration::from_micros(us.saturating_sub(5000));
-            std::thread::sleep(sleep_time);
-        }
-
-        // Spin-wait for remaining time (or all of it if < 15ms)
-        while start.elapsed() < target {
-            std::hint::spin_loop();
-        }
-    }
-
-    /// High-precision delay for milliseconds (Linux version)
+    /// High-precision delay for milliseconds
     /// Uses thread::sleep for bulk of delay, spin-wait only for final precision
-    #[cfg(not(target_os = "windows"))]
     pub fn delay_ms(ms: u64) {
         let start = Instant::now();
         let target = Duration::from_millis(ms);
@@ -253,27 +230,6 @@ impl FtdiConnection {
         }
 
         // Spin-wait for final millisecond precision
-        while start.elapsed() < target {
-            std::hint::spin_loop();
-        }
-    }
-
-    /// High-precision delay for milliseconds (Windows version)
-    /// Windows has ~15.6ms timer resolution, requires larger safety margins
-    #[cfg(target_os = "windows")]
-    pub fn delay_ms(ms: u64) {
-        let start = Instant::now();
-        let target = Duration::from_millis(ms);
-
-        // Windows sleep() has ~15ms resolution, so:
-        // - For < 20ms: pure spin-wait to avoid overshoot
-        // - For >= 20ms: sleep with 5ms safety margin, then spin-wait
-        if ms >= 20 {
-            let sleep_time = Duration::from_millis(ms.saturating_sub(5));
-            std::thread::sleep(sleep_time);
-        }
-
-        // Spin-wait for remaining time
         while start.elapsed() < target {
             std::hint::spin_loop();
         }

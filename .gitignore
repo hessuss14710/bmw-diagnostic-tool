@@ -21,10 +21,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Environment
+# Environment (NEVER commit API keys!)
 .env
 .env.local
 .env.*.local
+server/.env
+app/.env
 
 # Tauri
 app/src-tauri/target/

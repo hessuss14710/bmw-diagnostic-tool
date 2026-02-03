@@ -38,19 +38,19 @@ echo "[3/5] Configurando reglas udev para cable K+DCAN FTDI..."
 # Crear regla udev para cable FTDI
 cat > /etc/udev/rules.d/99-ftdi-kdcan.rules << 'EOF'
 # Reglas udev para cable K+DCAN con chip FTDI
-# Permite acceso al puerto serial sin necesidad de root
+# Solo usuarios del grupo dialout pueden acceder (MODE=0660)
 
 # FTDI FT232R (comun en cables K+DCAN)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0666", GROUP="dialout", SYMLINK+="kdcan"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0660", GROUP="dialout", SYMLINK+="kdcan"
 
 # FTDI FT232H
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6014", MODE="0666", GROUP="dialout", SYMLINK+="kdcan"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6014", MODE="0660", GROUP="dialout", SYMLINK+="kdcan"
 
 # FTDI FT232BM
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", MODE="0666", GROUP="dialout", SYMLINK+="kdcan"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", MODE="0660", GROUP="dialout", SYMLINK+="kdcan"
 
 # Generico FTDI
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0660", GROUP="dialout"
 EOF
 
 echo "[4/5] Recargando reglas udev..."

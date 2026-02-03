@@ -4,12 +4,22 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+# Security: Run as dedicated user, not root
+User=www-data
+Group=www-data
 WorkingDirectory=/srv/taller/server
-ExecStart=/bin/bash -c 'source /srv/taller/server/.env && exec /usr/bin/node /srv/taller/server/dist/index.js'
+# Load environment from file securely
+EnvironmentFile=/srv/taller/server/.env
+ExecStart=/usr/bin/node /srv/taller/server/dist/index.js
 Restart=on-failure
 RestartSec=10
-Environment=NODE_ENV=production
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/taller/server/data
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

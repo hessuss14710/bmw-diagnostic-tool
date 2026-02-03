@@ -17,11 +17,29 @@ const app = express()
 const httpServer = createServer(app)
 const PORT = process.env.PORT || 3002
 
-// Socket.IO with CORS
+// Allowed origins for CORS (localhost development + Tauri app)
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "tauri://localhost",
+  "https://tauri.localhost",
+]
+
+// Socket.IO with restricted CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (Tauri app, curl, etc.)
+      if (!origin) return callback(null, true)
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true)
+      }
+      callback(new Error("CORS not allowed"))
+    },
     methods: ["GET", "POST"],
+    credentials: true,
   },
 })
 
@@ -51,8 +69,17 @@ function getOpenAI(): OpenAI | null {
   return openai
 }
 
-// Middleware
-app.use(cors())
+// Middleware - Restricted CORS
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true)
+    }
+    callback(new Error("CORS not allowed"))
+  },
+  credentials: true,
+}))
 app.use(express.json())
 
 // Request logging
@@ -286,8 +313,9 @@ dashboardNamespace.on("connection", (socket) => {
         socket.broadcast.to(sessionId).emit("ai:analysis", analysis)
       }
     } catch (error) {
+      console.error("AI analysis error:", error)
       socket.emit("ai:error", {
-        message: error instanceof Error ? error.message : "Error en análisis",
+        message: "Error al procesar el análisis. Intenta de nuevo.",
       })
     }
   })
@@ -395,7 +423,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000)
 
-// Error handling
+// Error handling - Don't expose internal errors
 app.use(
   (
     err: Error,
@@ -406,7 +434,7 @@ app.use(
     console.error("Unhandled error:", err)
     res.status(500).json({
       error: "Internal server error",
-      message: err.message,
+      message: "An unexpected error occurred",
     })
   }
 )
