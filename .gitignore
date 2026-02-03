@@ -34,4 +34,3 @@ app/src-tauri/Cargo.lock
 
 # Daemon
 daemon-ftdi/target/
-usb-files/

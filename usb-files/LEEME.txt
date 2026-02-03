@@ -1,0 +1,56 @@
+═══════════════════════════════════════════════════════════════════
+            BMW DIAGNOSTIC TOOL - ARCHIVOS DE INSTALACIÓN
+═══════════════════════════════════════════════════════════════════
+
+CONTENIDO DE ESTA CARPETA:
+--------------------------
+1. install-bmw-diag.sh      - Script de instalación automática
+2. BMW Diag_0.1.0_amd64.deb - Paquete de la aplicación
+3. uninstall-bmw-diag.sh    - Script de desinstalación
+
+
+INSTRUCCIONES:
+--------------
+
+PASO 1: Después de instalar Debian, abrir Terminal (Ctrl+Alt+T)
+
+PASO 2: Montar el USB (si no se monta automáticamente):
+
+        sudo mkdir -p /mnt/usb
+        sudo mount /dev/sdb1 /mnt/usb
+
+PASO 3: Copiar archivos al home:
+
+        cp /mnt/usb/*.sh ~/
+        cp /mnt/usb/*.deb ~/
+
+PASO 4: Ejecutar instalador:
+
+        cd ~
+        chmod +x install-bmw-diag.sh
+        sudo ./install-bmw-diag.sh --no-reboot
+
+PASO 5: Reiniciar:
+
+        sudo reboot
+
+
+DESPUÉS DEL REINICIO:
+---------------------
+1. Conectar adaptador K+DCAN al USB
+2. Abrir Terminal y ejecutar: kdcan-test
+3. Iniciar aplicación desde el menú o ejecutar: bmw-diag
+
+
+SOLUCIÓN DE PROBLEMAS:
+----------------------
+- Si el adaptador no se detecta: kdcan-test
+- Ver log de instalación: cat /var/log/bmw-diag-install.log
+- Reinstalar manualmente: sudo dpkg -i "BMW Diag_0.1.0_amd64.deb"
+
+
+CONTACTO / SOPORTE:
+-------------------
+GitHub: https://github.com/hessuss14710/bmw-diagnostic-tool
+
+═══════════════════════════════════════════════════════════════════
