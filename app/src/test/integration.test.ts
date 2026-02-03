@@ -195,14 +195,13 @@ describe("BMW Diagnostic Integration Tests", () => {
 
       const { result } = renderHook(() => useDatabase())
 
-      let vehicles
-      await act(async () => {
-        vehicles = await result.current.getVehicles()
+      const vehicles = await act(async () => {
+        return await result.current.getVehicles()
       })
 
       expect(vehicles).toHaveLength(2)
-      expect(vehicles[0].engine_code).toBe("M47TU2D20")
-      expect(vehicles[1].engine_code).toBe("N47D20")
+      expect(vehicles[0]?.engine_code).toBe("M47TU2D20")
+      expect(vehicles[1]?.engine_code).toBe("N47D20")
     })
 
     it("should find vehicle by VIN", async () => {
@@ -210,9 +209,8 @@ describe("BMW Diagnostic Integration Tests", () => {
 
       const { result } = renderHook(() => useDatabase())
 
-      let vehicle
-      await act(async () => {
-        vehicle = await result.current.getVehicleByVin("WBANE71000B123456")
+      const vehicle = await act(async () => {
+        return await result.current.getVehicleByVin("WBANE71000B123456")
       })
 
       expect(vehicle?.model).toBe("520d E60")
@@ -252,15 +250,14 @@ describe("BMW Diagnostic Integration Tests", () => {
 
       const { result } = renderHook(() => useDatabase())
 
-      let sessions
-      await act(async () => {
-        sessions = await result.current.getSessionsForVehicle(1)
+      const sessions = await act(async () => {
+        return await result.current.getSessionsForVehicle(1)
       })
 
       expect(sessions).toHaveLength(3)
-      expect(sessions[0].ecu_name).toContain("DDE")
-      expect(sessions[1].ecu_name).toContain("DME")
-      expect(sessions[2].ecu_name).toContain("KOMBI")
+      expect(sessions[0]?.ecu_name).toContain("DDE")
+      expect(sessions[1]?.ecu_name).toContain("DME")
+      expect(sessions[2]?.ecu_name).toContain("KOMBI")
     })
   })
 
@@ -297,7 +294,7 @@ describe("BMW Diagnostic Integration Tests", () => {
 
       const { result } = renderHook(() => useDatabase())
 
-      let history
+      let history: Array<{ code: string }> = []
       await act(async () => {
         history = await result.current.getDtcHistory(1)
       })
@@ -305,7 +302,7 @@ describe("BMW Diagnostic Integration Tests", () => {
       expect(history).toHaveLength(7)
 
       // Check DPF codes
-      const dpfCodes = history.filter((d: any) => d.code.startsWith("2A") || d.code.startsWith("4"))
+      const dpfCodes = history.filter((d) => d.code.startsWith("2A") || d.code.startsWith("4"))
       expect(dpfCodes.length).toBeGreaterThan(0)
     })
   })
@@ -357,18 +354,18 @@ describe("BMW Diagnostic Integration Tests", () => {
       })
 
       // 4. Retrieve DTCs
-      let dtcs
+      let dtcs: unknown[] = []
       await act(async () => {
         dtcs = await result.current.getDtcsForSession(sessionId!)
       })
       expect(dtcs).toHaveLength(4)
 
       // 5. Get stats
-      let stats
+      let stats: { dtc_count: number } | null = null
       await act(async () => {
         stats = await result.current.getStats()
       })
-      expect(stats.dtc_count).toBe(18)
+      expect(stats!.dtc_count).toBe(18)
     })
   })
 
@@ -392,12 +389,12 @@ describe("BMW Diagnostic Integration Tests", () => {
 
       const { result } = renderHook(() => useDatabase())
 
-      let data
+      let data = ""
       await act(async () => {
         data = await result.current.exportAll()
       })
 
-      const parsed = JSON.parse(data as string)
+      const parsed = JSON.parse(data)
       expect(parsed.version).toBe("1.0")
       expect(parsed.vehicles).toHaveLength(2)
       expect(parsed.sessions).toHaveLength(3)

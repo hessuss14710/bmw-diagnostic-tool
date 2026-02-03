@@ -18,5 +18,5 @@ Object.assign(navigator, {
 })
 
 // Mock URL API for blob downloads
-global.URL.createObjectURL = vi.fn(() => "blob:mock-url")
-global.URL.revokeObjectURL = vi.fn()
+URL.createObjectURL = vi.fn(() => "blob:mock-url")
+URL.revokeObjectURL = vi.fn()

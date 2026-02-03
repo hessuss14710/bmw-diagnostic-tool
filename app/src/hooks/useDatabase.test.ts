@@ -2,10 +2,10 @@
  * Tests for useDatabase hook
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { renderHook, act, waitFor } from "@testing-library/react"
+import { renderHook, act } from "@testing-library/react"
 import { useDatabase } from "./useDatabase"
 import { invoke } from "@tauri-apps/api/core"
-import { mockVehicles, mockVehicle, mockStats } from "@/test/mocks"
+import { mockVehicles, mockStats } from "@/test/mocks"
 
 // Mock the Tauri invoke function
 vi.mock("@tauri-apps/api/core", () => ({
