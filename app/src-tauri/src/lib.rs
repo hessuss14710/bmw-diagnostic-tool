@@ -10,6 +10,9 @@ mod pid_commands;
 mod serial;
 pub mod validators;
 
+#[cfg(test)]
+mod integration_tests;
+
 use database::Database;
 use db_commands::DbState;
 use serial::SerialState;
